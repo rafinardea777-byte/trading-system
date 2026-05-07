@@ -1,12 +1,12 @@
 ---
-title: Market Watcher
-emoji: 🔭
+title: News Dashboard
+emoji: 🗞
 colorFrom: blue
 colorTo: green
 sdk: docker
 app_port: 7860
 pinned: false
-short_description: Hebrew dashboard for market news aggregation and analysis
+short_description: Personal Hebrew RTL dashboard for market news aggregation
 ---
 
 # Trading System
