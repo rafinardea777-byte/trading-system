@@ -1,0 +1,47 @@
+# --- Web framework ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+jinja2>=3.1.0
+
+# --- Settings & validation ---
+pydantic>=2.9.0
+pydantic-settings>=2.6.0
+python-dotenv>=1.0.0
+
+# --- Database ---
+sqlmodel>=0.0.22
+
+# --- Scheduling ---
+APScheduler>=3.10.0
+
+# --- Rate limiting / security ---
+slowapi>=0.1.9
+
+# --- Postgres (לפריסת cloud) ---
+psycopg2-binary>=2.9.10
+
+# --- HTTP ---
+requests>=2.32.0
+httpx>=0.28.0
+
+# --- Market data ---
+yfinance>=0.2.50
+pandas>=2.2.0
+numpy>=2.0.0
+
+# --- News sources ---
+tweepy>=4.14.0
+feedparser>=6.0.0
+
+# --- AI enrichment (optional) ---
+openai>=1.50.0
+
+# --- Reports ---
+openpyxl>=3.1.5      # Excel journals
+
+# --- Logging ---
+structlog>=24.4.0
+
+# --- Dev / test ---
+pytest>=8.3.0
+pytest-asyncio>=0.24.0

@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets — NEVER commit
+.env
+.env.local
+.env.*.local
+config.env
+*.key
+*.pem
+secrets/
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+data/*.db
+data/*.db-*
+
+# Reports / generated output
+data/reports/*.md
+data/reports/*.html
+data/reports/*.txt
+data/reports/*.csv
+!data/reports/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Cloudflare tunnel binary (יורד אוטומטית)
+bin/cloudflared.exe
+bin/

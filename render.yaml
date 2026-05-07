@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: trading-system
+    runtime: python
+    plan: free                      # חינם. נרדם אחרי 15 דק' חוסר פעילות, cold start ~60s
+    region: oregon                  # free tier זמין רק ב-oregon
+    branch: main
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/system/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7              # 3.14 חדש מדי לחלק מהתלויות; 3.12 יציב
+      - key: APP_ENV
+        value: production
+      - key: PUBLIC_MODE
+        value: "true"
+      - key: ENABLE_SCHEDULER
+        value: "true"
+      - key: TRADING_MODE
+        value: paper
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trading-db
+          property: connectionString
+      - key: ADMIN_API_KEY
+        generateValue: true        # Render מייצר אוטומטית מפתח חזק
+      - key: CORS_ORIGINS
+        sync: false                # תזין ידנית בממשק Render (https://yourdomain.com)
+      - key: OPENAI_API_KEY
+        sync: false                # תזין ידנית - לא ב-git!
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: ENABLE_TELEGRAM_ALERTS
+        value: "false"             # שנה ל-true אחרי שהזנת tokens
+      - key: X_BEARER_TOKEN
+        sync: false                # אופציונלי
+
+databases:
+  - name: trading-db
+    databaseName: trading
+    plan: free                     # Postgres חינמי ל-30 יום, אח"כ צריך לשדרג או להחליף ל-DB חיצוני
+    region: oregon
+    postgresMajorVersion: "16"
