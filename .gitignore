@@ -41,7 +41,12 @@ data/reports/*.csv
 
 # Logs
 *.log
+*.log.err
 logs/
+server.log
+server.log.err
+tunnel.log
+tunnel.log.err
 
 # IDE
 .idea/
