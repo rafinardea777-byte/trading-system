@@ -5,6 +5,20 @@ from typing import Optional
 from sqlmodel import Field, SQLModel
 
 
+class User(SQLModel, table=True):
+    """משתמש מערכת - בסיס למודל מנויים."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(index=True, unique=True)
+    password_hash: str
+    full_name: Optional[str] = None
+    plan: str = Field(default="free", index=True)  # free | pro | vip
+    is_active: bool = Field(default=True, index=True)
+    is_admin: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    last_login_at: Optional[datetime] = None
+
+
 class Scan(SQLModel, table=True):
     """ריצה של סורק (news או market)."""
 

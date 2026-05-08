@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 60
     cors_origins: str = "*"    # "https://yourdomain.com,https://*.yourdomain.com"
 
+    # --- Auth / JWT ---
+    jwt_secret: str = "change-me-in-production-please-use-secrets-token-urlsafe-32"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_hours: int = 24 * 30  # token חי 30 יום
+    allow_signup: bool = True        # אפשר לכבות פתיחת חשבונות זמנית
+
     # --- Scheduling ---
     enable_scheduler: bool = True
     news_scan_interval_hours: int = 24
