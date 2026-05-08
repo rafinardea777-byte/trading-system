@@ -5,6 +5,7 @@ from app.scanners.market.signal import evaluate_symbol
 from app.scanners.market.universe import get_universe
 from app.storage import Signal, get_session
 from app.storage.repository import (
+    add_notification,
     create_scan,
     finish_scan,
     signal_exists_today,
@@ -67,8 +68,21 @@ def run_market_scan(
                     stop_loss=tech.stop_loss,
                 )
                 upsert_signal(session, sig)
+                session.flush()  # כדי שיהיה sig.id ל-notification
                 new_signals.append(sig)
                 log.info("signal_found", symbol=symbol, strength=tech.strength)
+
+                # יצירת התראה ל-bell icon בדשבורד
+                emoji = "🔥" if tech.strength >= 8 else ("⭐" if tech.strength >= 6 else "📊")
+                add_notification(
+                    session,
+                    kind="signal",
+                    title=f"{emoji} סיגנל חדש: {symbol}",
+                    message=f"מחיר ${tech.price:.2f} | RSI {tech.rsi:.1f} | וולום x{tech.volume_ratio:.1f} | חוזק {tech.strength:.1f}/10",
+                    symbol=symbol,
+                    signal_id=sig.id,
+                    icon=emoji,
+                )
 
                 if (i + 1) % 50 == 0:
                     log.info("market_scan_progress", scanned=i + 1, total=len(symbols))

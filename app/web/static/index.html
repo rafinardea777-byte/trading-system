@@ -186,6 +186,29 @@ tr:hover td{background:#0a1020}
 .clickable-sym{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:rgba(0,212,255,0.3);transition:color .2s}
 .clickable-sym:hover{color:#fff;text-decoration-color:var(--blue)}
 
+/* NOTIFICATIONS BELL */
+.bell-wrap{position:relative;display:inline-block}
+.bell-btn{background:var(--card);border:1px solid var(--border);color:var(--text);width:36px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;position:relative;padding:0}
+.bell-btn:hover{border-color:var(--blue)}
+.bell-badge{position:absolute;top:-6px;left:-6px;background:var(--red);color:#fff;font-size:10px;font-weight:bold;border-radius:10px;padding:1px 6px;min-width:16px;text-align:center;line-height:1.4}
+.bell-dropdown{position:absolute;top:42px;left:0;width:340px;max-width:calc(100vw - 30px);max-height:480px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.6);overflow:hidden;display:none;z-index:250}
+.bell-dropdown.show{display:flex;flex-direction:column}
+.bell-dropdown-header{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.bell-dropdown-header h4{font-size:13px;color:var(--blue)}
+.bell-dropdown-header button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px}
+.bell-dropdown-header button:hover{color:var(--text)}
+.bell-list{flex:1;overflow-y:auto}
+.notif-item{padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:10px;transition:background .15s}
+.notif-item:hover{background:#0a1020}
+.notif-item.unread{background:#0d1a2a}
+.notif-item.unread:hover{background:#0e1f33}
+.notif-icon{font-size:20px;flex-shrink:0}
+.notif-body{flex:1;min-width:0}
+.notif-title{font-size:13px;font-weight:600;margin-bottom:2px}
+.notif-msg{font-size:11px;color:var(--muted);line-height:1.4}
+.notif-time{font-size:10px;color:var(--muted);margin-top:4px}
+.notif-empty{padding:30px 14px;text-align:center;color:var(--muted);font-size:12px}
+
 /* WATCHLIST */
 .star-btn{background:none;border:none;color:#4a5568;cursor:pointer;font-size:18px;padding:0 4px;transition:color .2s;line-height:1}
 .star-btn.active{color:#ffd700}
@@ -261,6 +284,16 @@ body{padding-bottom:70px}
         <input id="symSearch" type="search" placeholder="🔍 חפש מנייה (AAPL, NVDA...)" maxlength="6" autocomplete="off"
                oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')doSearch()" />
         <button class="btn btn-blue" onclick="doSearch()">פתח</button>
+      </div>
+      <div class="bell-wrap">
+        <button class="bell-btn" onclick="toggleBell(event)" title="התראות">🔔<span class="bell-badge" id="bellBadge" style="display:none">0</span></button>
+        <div class="bell-dropdown" id="bellDropdown" onclick="event.stopPropagation()">
+          <div class="bell-dropdown-header">
+            <h4>🔔 התראות</h4>
+            <button onclick="markAllRead()">סמן הכל כנקרא</button>
+          </div>
+          <div class="bell-list" id="bellList"><div class="notif-empty">טוען...</div></div>
+        </div>
       </div>
       <div class="time-badge" id="clock">⏰ --</div>
       <button class="btn btn-blue" onclick="runScan('news')">🔄 חדשות</button>
@@ -848,6 +881,113 @@ async function openStock(symbol) {
   document.getElementById('finvizImg').src = data.finviz_chart_url + `&_=${Date.now()}`;
 }
 
+// ============= NOTIFICATIONS =============
+let _lastSeenId = parseInt(localStorage.getItem('lastSeenNotifId') || '0');
+let _bellOpen = false;
+const _baseTitle = document.title;
+
+function toggleBell(e) {
+  if (e) e.stopPropagation();
+  _bellOpen = !_bellOpen;
+  const dd = document.getElementById('bellDropdown');
+  dd.classList.toggle('show', _bellOpen);
+  if (_bellOpen) loadNotifications();
+}
+
+document.addEventListener('click', () => {
+  if (_bellOpen) { _bellOpen = false; document.getElementById('bellDropdown').classList.remove('show'); }
+});
+
+function timeAgo(iso) {
+  const d = new Date(iso);
+  const sec = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (sec < 60) return 'כעת';
+  if (sec < 3600) return `לפני ${Math.floor(sec/60)} דק'`;
+  if (sec < 86400) return `לפני ${Math.floor(sec/3600)} שע'`;
+  return d.toLocaleDateString('he-IL');
+}
+
+async function loadNotifications() {
+  const items = await api('/api/notifications?limit=30') || [];
+  const list = document.getElementById('bellList');
+  if (!items.length) {
+    list.innerHTML = '<div class="notif-empty">📭 אין התראות עדיין<br><span style="font-size:11px">סיגנלים חדשים יופיעו כאן אוטומטית</span></div>';
+    return;
+  }
+  list.innerHTML = items.map(n => `
+    <div class="notif-item ${n.read_at?'':'unread'}" onclick="onNotifClick(${n.id}, ${n.symbol?`'${n.symbol}'`:'null'})">
+      <div class="notif-icon">${n.icon || '🔔'}</div>
+      <div class="notif-body">
+        <div class="notif-title">${escapeHtml(n.title)}</div>
+        <div class="notif-msg">${escapeHtml(n.message)}</div>
+        <div class="notif-time">${timeAgo(n.created_at)}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function onNotifClick(nid, sym) {
+  try { await fetch(API + `/api/notifications/${nid}/read`, {method:'POST'}); } catch(e){}
+  if (sym) openStock(sym);
+  refreshBadge();
+  if (_bellOpen) loadNotifications();
+}
+
+async function markAllRead() {
+  await fetch(API + '/api/notifications/read-all', {method:'POST'});
+  refreshBadge();
+  loadNotifications();
+}
+
+function ensureBrowserNotifyPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function showBrowserNotification(n) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const notif = new Notification(n.title, {
+      body: n.message,
+      icon: '/static/favicon.ico',
+      tag: 'sig-' + n.id,
+      silent: false,
+    });
+    notif.onclick = () => { window.focus(); if (n.symbol) openStock(n.symbol); notif.close(); };
+  } catch(e) {}
+}
+
+async function refreshBadge() {
+  const r = await api('/api/notifications/count');
+  const badge = document.getElementById('bellBadge');
+  const count = (r && r.unread) || 0;
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.style.display = '';
+    document.title = `(${count}) ${_baseTitle}`;
+  } else {
+    badge.style.display = 'none';
+    document.title = _baseTitle;
+  }
+}
+
+async function pollNotifications() {
+  const items = await api('/api/notifications?limit=10');
+  if (!items || !items.length) return;
+  const newest = items[0];
+  if (newest.id > _lastSeenId) {
+    // הופיעו חדשות מאז הביקור האחרון - הצג browser notif לכל חדש
+    if (_lastSeenId > 0) {  // לא מציג בטעינה ראשונה
+      const fresh = items.filter(n => n.id > _lastSeenId).slice(0, 3);
+      fresh.reverse().forEach(showBrowserNotification);
+    }
+    _lastSeenId = newest.id;
+    localStorage.setItem('lastSeenNotifId', String(_lastSeenId));
+  }
+  refreshBadge();
+}
+
 // ============= WATCHLIST =============
 const WL_KEY = 'watchlist';
 function wlGet() {
@@ -960,7 +1100,10 @@ function exportCSV() {
 // אתחול
 loadDashboard();
 loadHealth();
+ensureBrowserNotifyPermission();
+pollNotifications();
 setInterval(loadDashboard, 60000);
+setInterval(pollNotifications, 30000);
 </script>
 </body>
 </html>

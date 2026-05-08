@@ -4,7 +4,7 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.storage.models import NewsItem, Scan, Signal, TradeJournal
+from app.storage.models import NewsItem, Notification, Scan, Signal, TradeJournal
 
 
 # --- Scans ---
@@ -95,6 +95,51 @@ def get_news(
 def get_journal(session: Session, limit: int = 50) -> list[TradeJournal]:
     stmt = select(TradeJournal).order_by(TradeJournal.entry_at.desc()).limit(limit)
     return list(session.exec(stmt))
+
+
+# --- Notifications ---
+def add_notification(
+    session: Session,
+    kind: str,
+    title: str,
+    message: str,
+    symbol: Optional[str] = None,
+    signal_id: Optional[int] = None,
+    icon: str = "🔔",
+) -> Notification:
+    n = Notification(
+        kind=kind, title=title, message=message,
+        symbol=symbol, signal_id=signal_id, icon=icon,
+    )
+    session.add(n)
+    return n
+
+
+def get_notifications(session: Session, limit: int = 50, unread_only: bool = False) -> list[Notification]:
+    stmt = select(Notification).order_by(Notification.created_at.desc())
+    if unread_only:
+        stmt = stmt.where(Notification.read_at.is_(None))
+    return list(session.exec(stmt.limit(limit)))
+
+
+def count_unread(session: Session) -> int:
+    return len(list(session.exec(select(Notification).where(Notification.read_at.is_(None)))))
+
+
+def mark_notification_read(session: Session, nid: int) -> None:
+    n = session.get(Notification, nid)
+    if n and not n.read_at:
+        n.read_at = datetime.utcnow()
+        session.add(n)
+
+
+def mark_all_read(session: Session) -> int:
+    items = list(session.exec(select(Notification).where(Notification.read_at.is_(None))))
+    now = datetime.utcnow()
+    for n in items:
+        n.read_at = now
+        session.add(n)
+    return len(items)
 
 
 def compute_stats(session: Session) -> dict:

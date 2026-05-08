@@ -11,6 +11,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from starlette.responses import JSONResponse
 
 from app.api import news as news_router
+from app.api import notifications as notifications_router
 from app.api import signals as signals_router
 from app.api import stats as stats_router
 from app.api import stocks as stocks_router
@@ -78,6 +79,7 @@ app.include_router(signals_router.router)
 app.include_router(news_router.router)
 app.include_router(stats_router.router)
 app.include_router(stocks_router.router)
+app.include_router(notifications_router.router)
 app.include_router(system_router.router)
 
 

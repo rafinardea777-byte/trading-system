@@ -58,6 +58,20 @@ class NewsItem(SQLModel, table=True):
     external_id: Optional[str] = Field(default=None, unique=True, index=True)
 
 
+class Notification(SQLModel, table=True):
+    """התראה למשתמש - סיגנל חדש, חדשות חמות, וכו'."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    kind: str = Field(index=True)  # signal | news | system
+    title: str
+    message: str
+    symbol: Optional[str] = Field(default=None, index=True)
+    signal_id: Optional[int] = Field(default=None, foreign_key="signal.id")
+    icon: str = "🔔"
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    read_at: Optional[datetime] = None
+
+
 class TradeJournal(SQLModel, table=True):
     """יומן עסקאות (לאחר כניסה)."""
 
