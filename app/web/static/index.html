@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TradingPro</title>
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#080c14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TradingPro">
+<link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+<link rel="apple-touch-icon" href="/static/icon.svg">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#080c14;--card:#0d1421;--border:#1e2d3d;--blue:#00d4ff;--green:#00ff88;--red:#ff4466;--gold:#ffd700;--text:#e0e6f0;--muted:#4a5568}
@@ -1094,6 +1101,13 @@ function exportCSV() {
     a.download = `signals_${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
     toast('✅ הקובץ ירד');
+  });
+}
+
+// PWA - רישום service worker (מאפשר התקנה כאפליקציה)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/static/sw.js', {scope: '/'}).catch(()=>{});
   });
 }
 

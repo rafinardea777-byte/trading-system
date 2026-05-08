@@ -1,0 +1,21 @@
+{
+  "name": "TradingPro",
+  "short_name": "TradingPro",
+  "description": "מערכת סיגנלים ומעקב חדשות שוק",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080c14",
+  "theme_color": "#00d4ff",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
