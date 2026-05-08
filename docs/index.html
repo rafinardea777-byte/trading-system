@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading System - מתחבר...</title>
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="0">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI','Heebo',sans-serif;background:#080c14;color:#e0e6f0;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.box{text-align:center;max-width:480px}
+.spinner{border:4px solid #1e2d3d;border-top:4px solid #00d4ff;border-radius:50%;width:48px;height:48px;animation:spin 1s linear infinite;margin:0 auto 24px}
+@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+h1{font-size:22px;margin-bottom:8px;color:#00d4ff}
+h1 span{color:#ffd700}
+.tag{font-size:13px;color:#4a5568;margin-bottom:24px}
+#msg{font-size:14px;color:#e0e6f0;line-height:1.6}
+.err{color:#ff4466}
+.ok{color:#00ff88}
+a{color:#00d4ff;text-decoration:none}
+a:hover{text-decoration:underline}
+.actions{margin-top:24px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.btn{background:#0d1421;border:1px solid #1e2d3d;color:#e0e6f0;padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:#00d4ff}
+.url-box{margin-top:16px;padding:10px 14px;background:#0d1421;border:1px solid #1e2d3d;border-radius:8px;font-size:11px;direction:ltr;word-break:break-all;color:#4a5568}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="spinner"></div>
+  <h1>📈 Trading<span>Pro</span></h1>
+  <div class="tag">מערכת סיגנלים מאוחדת</div>
+  <p id="msg">מאתר את שרת המערכת...</p>
+  <div id="urlBox" class="url-box" style="display:none"></div>
+  <div id="actions" class="actions" style="display:none">
+    <a id="goBtn" class="btn" style="background:#1a7f37;border-color:#1a7f37">היכנס לאתר →</a>
+    <button class="btn" onclick="location.reload()">🔄 רענן</button>
+  </div>
+</div>
+<script>
+// טוען את ה-URL הנוכחי מ-GitHub raw (cache 5 דק' מהCDN), ומפנה אליו
+const RAW = 'https://raw.githubusercontent.com/rafinardea777-byte/trading-system/main/docs/current_url.txt';
+
+async function load() {
+  const msg = document.getElementById('msg');
+  try {
+    const r = await fetch(RAW + '?t=' + Date.now(), {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    let url = (await r.text()).trim().replace(/^﻿/, '');
+
+    if (!/^https:\/\/[a-z0-9-]+\.trycloudflare\.com\/?$/i.test(url) &&
+        !/^https:\/\/[a-z0-9.-]+\/?$/i.test(url)) {
+      throw new Error('URL לא תקין: ' + url);
+    }
+    url = url.replace(/\/$/, '');
+
+    // בדיקת חיים מהירה - אם השרת עונה, נפנה אליו אוטומטית
+    msg.textContent = 'נמצא! בודק שהשרת חי...';
+    document.getElementById('urlBox').style.display = 'block';
+    document.getElementById('urlBox').textContent = url;
+
+    let alive = false;
+    try {
+      const ctl = new AbortController();
+      setTimeout(() => ctl.abort(), 4000);
+      const h = await fetch(url + '/api/system/health', {signal: ctl.signal, cache: 'no-store'});
+      alive = h.ok;
+    } catch (e) {}
+
+    if (alive) {
+      msg.innerHTML = '<span class="ok">✓ השרת פעיל</span><br>מעביר אותך תוך 2 שניות...';
+      setTimeout(() => window.location.replace(url), 2000);
+    } else {
+      msg.innerHTML = '<span class="err">⚠ השרת לא מגיב כרגע</span><br>ייתכן שהוא עולה או שהמחשב כבוי';
+    }
+
+    const goBtn = document.getElementById('goBtn');
+    goBtn.href = url;
+    document.getElementById('actions').style.display = 'flex';
+
+  } catch (err) {
+    msg.innerHTML = '<span class="err">שגיאה: ' + err.message + '</span><br><br>נסה לרענן בעוד דקה';
+  }
+}
+load();
+</script>
+</body>
+</html>

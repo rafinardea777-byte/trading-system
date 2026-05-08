@@ -1,6 +1,7 @@
 """תזמון - APScheduler ברקע מתוך FastAPI."""
 from datetime import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -11,6 +12,17 @@ from app.core.logging import get_logger
 log = get_logger(__name__)
 
 _scheduler: Optional[BackgroundScheduler] = None
+
+_NY = ZoneInfo("America/New_York")
+
+
+def is_us_market_open(now: datetime | None = None) -> bool:
+    """NYSE: שני-שישי 09:30-16:00 ET. בלי טיפול בחגים פדרליים."""
+    et = (now or datetime.now(_NY)).astimezone(_NY)
+    if et.weekday() >= 5:
+        return False
+    minutes = et.hour * 60 + et.minute
+    return 570 <= minutes <= 960  # 09:30=570, 16:00=960
 
 
 def _news_job():
@@ -23,9 +35,13 @@ def _news_job():
 
 
 def _market_job():
+    # סריקה רק כשהשוק פתוח - חיסכון משאבים, נתונים אקטואליים
+    if not is_us_market_open():
+        log.info("market_scan_skipped", reason="market_closed")
+        return
+
     from app.scanners.market import run_market_scan
     try:
-        # סריקה ראשונית - ללא S&P 500 (לחיסכון בזמן)
         result = run_market_scan(include_sp500=False)
         log.info("scheduled_market_scan_done", **result)
     except Exception as e:

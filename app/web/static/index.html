@@ -31,6 +31,11 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);mi
 .logo span{color:var(--gold)}
 @media(min-width:768px){.logo{display:none}}
 .topbar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.search-wrap{display:flex;gap:4px;align-items:center}
+.search-wrap input{background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:12px;width:170px;direction:ltr;text-align:left}
+.search-wrap input:focus{outline:none;border-color:var(--blue)}
+.search-wrap input::placeholder{color:var(--muted);direction:rtl}
+@media(max-width:520px){.search-wrap input{width:120px}}
 .time-badge{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--muted)}
 .btn{border:none;border-radius:8px;padding:7px 14px;color:white;font-size:12px;cursor:pointer;font-weight:bold}
 .btn-blue{background:linear-gradient(135deg,#0066cc,#0044aa)}
@@ -233,9 +238,14 @@ body{padding-bottom:70px}
   <div class="topbar">
     <div class="logo">📈 Trading<span>Pro</span></div>
     <div class="topbar-right">
+      <div class="search-wrap">
+        <input id="symSearch" type="search" placeholder="🔍 חפש מנייה (AAPL, NVDA...)" maxlength="6" autocomplete="off"
+               oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')doSearch()" />
+        <button class="btn btn-blue" onclick="doSearch()">פתח</button>
+      </div>
       <div class="time-badge" id="clock">⏰ --</div>
-      <button class="btn btn-blue" onclick="runScan('news')">🔄 סרוק חדשות</button>
-      <button class="btn btn-green" onclick="runScan('market')">🔄 סרוק שוק</button>
+      <button class="btn btn-blue" onclick="runScan('news')">🔄 חדשות</button>
+      <button class="btn btn-green" onclick="runScan('market')">🔄 שוק</button>
       <button class="btn btn-gold" onclick="exportCSV()">📥 ייצוא</button>
     </div>
   </div>
@@ -795,6 +805,16 @@ async function openStock(symbol) {
 
   // Finviz snapshot
   document.getElementById('finvizImg').src = data.finviz_chart_url + `&_=${Date.now()}`;
+}
+
+// חיפוש מנייה ידני
+function doSearch() {
+  const input = document.getElementById('symSearch');
+  const sym = (input.value || '').trim().toUpperCase();
+  if (!sym) { toast('הזן סמל מנייה'); return; }
+  if (!/^[A-Z]{1,6}$/.test(sym)) { toast('סמל לא תקין'); return; }
+  openStock(sym);
+  input.blur();
 }
 
 // כפתורי timeframe
