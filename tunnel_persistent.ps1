@@ -124,10 +124,34 @@ while ($true) {
         Write-Host "[!] Could not extract URL. Check $LogFile" -ForegroundColor Red
     }
 
-    # Block until cloudflared exits
-    try { $proc.WaitForExit() } catch {}
+    # Health-check loop: every 60s probe the tunnel URL.
+    # If 3 consecutive probes fail, force-kill cloudflared and restart.
+    $consecutiveFailures = 0
+    while (-not $proc.HasExited) {
+        Start-Sleep 60
 
-    Write-Host "[!] Tunnel exited. Restarting in 5s..." -ForegroundColor Yellow
+        if ($url) {
+            $alive = $false
+            try {
+                $resp = Invoke-WebRequest -Uri "$url/api/system/health" -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
+                if ($resp.StatusCode -eq 200) { $alive = $true }
+            } catch {}
+
+            if ($alive) {
+                $consecutiveFailures = 0
+            } else {
+                $consecutiveFailures++
+                Write-Host "[!] tunnel health-check failed ($consecutiveFailures/3) at $(Get-Date -Format 'HH:mm:ss')" -ForegroundColor Yellow
+                if ($consecutiveFailures -ge 3) {
+                    Write-Host "[!] killing stuck cloudflared..." -ForegroundColor Red
+                    try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+                    break
+                }
+            }
+        }
+    }
+
+    Write-Host "[!] Tunnel exited or killed. Restarting in 5s..." -ForegroundColor Yellow
     Start-Sleep 5
 
     # Restart server too if it died
