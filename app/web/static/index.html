@@ -186,6 +186,23 @@ tr:hover td{background:#0a1020}
 .clickable-sym{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:rgba(0,212,255,0.3);transition:color .2s}
 .clickable-sym:hover{color:#fff;text-decoration-color:var(--blue)}
 
+/* WATCHLIST */
+.star-btn{background:none;border:none;color:#4a5568;cursor:pointer;font-size:18px;padding:0 4px;transition:color .2s;line-height:1}
+.star-btn.active{color:#ffd700}
+.star-btn:hover{color:#ffd700}
+.wl-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;border-right:3px solid var(--gold);position:relative}
+.wl-card .x-btn{position:absolute;top:8px;left:8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px}
+.wl-card .x-btn:hover{color:var(--red)}
+.wl-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;cursor:pointer}
+.wl-top:hover .wl-symbol{color:#fff}
+.wl-symbol{font-size:18px;font-weight:bold;color:var(--blue);transition:color .2s}
+.wl-price{font-size:16px;font-weight:bold}
+.wl-price.pos{color:var(--green)}.wl-price.neg{color:var(--red)}
+.wl-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px}
+.wl-change{font-weight:bold}
+.wl-change.pos{color:var(--green)}.wl-change.neg{color:var(--red)}
+.wl-name{font-size:11px;color:var(--muted);margin-bottom:6px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
@@ -212,6 +229,7 @@ body{padding-bottom:70px}
   <div class="sidebar-tag">מערכת סיגנלים מאוחדת</div>
   <button class="nav-item active" onclick="showPage('dashboard',this)">🏠 דשבורד</button>
   <button class="nav-item" onclick="showPage('signals',this)">🔥 סיגנלים</button>
+  <button class="nav-item" onclick="showPage('watchlist',this)">⭐ Watchlist</button>
   <button class="nav-item" onclick="showPage('news',this)">📰 חדשות שוק</button>
   <button class="nav-item" onclick="showPage('journal',this)">📋 יומן עסקאות</button>
   <button class="nav-item" onclick="showPage('scans',this)">🛰️ ריצות סורק</button>
@@ -229,6 +247,7 @@ body{padding-bottom:70px}
 <div class="mobile-nav">
   <button class="mobile-nav-item active" onclick="showPage('dashboard',this)"><span class="icon">🏠</span>דשבורד</button>
   <button class="mobile-nav-item" onclick="showPage('signals',this)"><span class="icon">🔥</span>סיגנלים</button>
+  <button class="mobile-nav-item" onclick="showPage('watchlist',this)"><span class="icon">⭐</span>Watch</button>
   <button class="mobile-nav-item" onclick="showPage('news',this)"><span class="icon">📰</span>חדשות</button>
   <button class="mobile-nav-item" onclick="showPage('journal',this)"><span class="icon">📋</span>יומן</button>
   <button class="mobile-nav-item" onclick="showPage('settings',this)"><span class="icon">⚙️</span>הגדרות</button>
@@ -277,6 +296,19 @@ body{padding-bottom:70px}
   <div class="page" id="page-signals">
     <div class="page-title">🔥 סיגנלים <span>חיים</span></div>
     <div class="signals-grid" id="signalsList"></div>
+  </div>
+
+  <!-- WATCHLIST -->
+  <div class="page" id="page-watchlist">
+    <div class="page-title">⭐ <span>Watchlist</span></div>
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input id="wlAddInput" type="text" placeholder="הוסף סמל (למשל NVDA)" maxlength="6"
+             oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')wlAdd()"
+             style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px;width:160px;direction:ltr;text-align:left">
+      <button class="btn btn-blue" onclick="wlAdd()">➕ הוסף</button>
+      <button class="btn" style="background:#1a2744" onclick="wlRefresh()">🔄 רענן מחירים</button>
+    </div>
+    <div class="signals-grid" id="watchlistGrid"></div>
   </div>
 
   <!-- NEWS -->
@@ -401,6 +433,7 @@ function showPage(pageId, btn) {
   document.querySelectorAll(`[onclick*="'${pageId}'"]`).forEach(b => b.classList.add('active'));
   window.scrollTo(0, 0);
   if (pageId === 'signals') loadSignals();
+  if (pageId === 'watchlist') loadWatchlist();
   if (pageId === 'news') loadNews();
   if (pageId === 'journal') loadJournal();
   if (pageId === 'scans') loadScans();
@@ -449,10 +482,14 @@ function strengthTextColor(v) {
 
 function renderSignal(s) {
   const strength = s.strength || 0;
+  const starred = wlHas(s.symbol);
   return `
     <div class="signal-card">
       <div class="signal-top">
-        <div class="signal-symbol clickable-sym" onclick="openStock('${s.symbol}')">${s.symbol}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="star-btn ${starred?'active':''}" onclick="event.stopPropagation();wlToggle('${s.symbol}')" title="הוסף ל-Watchlist">${starred?'★':'☆'}</button>
+          <div class="signal-symbol clickable-sym" onclick="openStock('${s.symbol}')">${s.symbol}</div>
+        </div>
         <div class="signal-price">$${s.price.toFixed(2)}</div>
       </div>
       <div class="signal-badges">
@@ -562,9 +599,13 @@ async function loadJournal() {
     const date = new Date(s.created_at).toLocaleDateString('he-IL');
     const pnl = s.pnl_pct != null ? `<span class="${s.pnl_pct >= 0 ? 'pos' : 'neg'}">${s.pnl_pct >= 0 ? '+' : ''}${s.pnl_pct.toFixed(1)}%</span>` : '-';
     const badge = s.status === 'open' ? `<span class="badge-open">פתוח</span>` : `<span class="badge-closed">${s.status === 'closed' ? 'סגור' : 'דילוג'}</span>`;
+    const starred = wlHas(s.symbol);
     return `<tr>
       <td>${date}</td>
-      <td><span class="sym clickable-sym" onclick="openStock('${s.symbol}')">${s.symbol}</span></td>
+      <td>
+        <button class="star-btn ${starred?'active':''}" onclick="event.stopPropagation();wlToggle('${s.symbol}')" style="font-size:14px">${starred?'★':'☆'}</button>
+        <span class="sym clickable-sym" onclick="openStock('${s.symbol}')">${s.symbol}</span>
+      </td>
       <td>$${s.price.toFixed(2)}</td>
       <td>${s.rsi.toFixed(1)}</td>
       <td>x${s.volume_ratio.toFixed(1)}</td>
@@ -805,6 +846,73 @@ async function openStock(symbol) {
 
   // Finviz snapshot
   document.getElementById('finvizImg').src = data.finviz_chart_url + `&_=${Date.now()}`;
+}
+
+// ============= WATCHLIST =============
+const WL_KEY = 'watchlist';
+function wlGet() {
+  try { return JSON.parse(localStorage.getItem(WL_KEY) || '[]'); } catch { return []; }
+}
+function wlSet(arr) { localStorage.setItem(WL_KEY, JSON.stringify(arr)); }
+function wlHas(sym) { return wlGet().includes(sym.toUpperCase()); }
+function wlToggle(sym) {
+  sym = sym.toUpperCase();
+  const list = wlGet();
+  const i = list.indexOf(sym);
+  if (i >= 0) { list.splice(i, 1); toast(`${sym} הוסר מה-Watchlist`); }
+  else { list.push(sym); toast(`${sym} נוסף ל-Watchlist`); }
+  wlSet(list);
+  // רענון ה-render הנוכחי
+  const active = document.querySelector('.page.active')?.id;
+  if (active === 'page-signals') loadSignals();
+  else if (active === 'page-dashboard') loadDashboard();
+  else if (active === 'page-watchlist') loadWatchlist();
+}
+function wlAdd() {
+  const input = document.getElementById('wlAddInput');
+  const sym = (input.value || '').trim().toUpperCase();
+  if (!/^[A-Z]{1,6}$/.test(sym)) { toast('סמל לא תקין'); return; }
+  if (wlHas(sym)) { toast('כבר ב-Watchlist'); return; }
+  wlToggle(sym);
+  input.value = '';
+}
+function wlRefresh() { loadWatchlist(true); }
+
+async function loadWatchlist(force) {
+  const list = wlGet();
+  const grid = document.getElementById('watchlistGrid');
+  if (!list.length) {
+    grid.innerHTML = renderEmpty('⭐', 'ה-Watchlist ריק', 'הוסף סמל למעלה או לחץ על ☆ ליד כל מנייה');
+    return;
+  }
+  grid.innerHTML = list.map(sym => `<div class="wl-card" id="wl-${sym}"><div class="modal-loading">טוען ${sym}...</div></div>`).join('');
+
+  // טען מקבילית את כל המניות (כל אחת מ-/api/stocks)
+  await Promise.all(list.map(async sym => {
+    const data = await api(`/api/stocks/${sym}`);
+    const el = document.getElementById(`wl-${sym}`);
+    if (!el) return;
+    if (!data) {
+      el.innerHTML = `<button class="x-btn" onclick="wlToggle('${sym}')">✕</button>
+        <div class="wl-symbol">${sym}</div>
+        <div class="wl-name" style="color:var(--red)">⚠ נכשלה טעינה</div>`;
+      return;
+    }
+    const ch = data.day_change_pct;
+    const chClass = ch == null ? '' : (ch >= 0 ? 'pos' : 'neg');
+    const sign = ch >= 0 ? '+' : '';
+    el.innerHTML = `
+      <button class="x-btn" onclick="wlToggle('${sym}')">✕</button>
+      <div class="wl-top" onclick="openStock('${sym}')">
+        <div class="wl-symbol">${sym}</div>
+        <div class="wl-price ${chClass}">$${(data.price||0).toFixed(2)}</div>
+      </div>
+      <div class="wl-name">${escapeHtml(data.name || '')}</div>
+      <div class="wl-meta">
+        <span class="wl-change ${chClass}">${ch != null ? sign+ch.toFixed(2)+'%' : '—'}</span>
+        <span>RSI? לחץ על הכרטיס לפרטים</span>
+      </div>`;
+  }));
 }
 
 // חיפוש מנייה ידני
