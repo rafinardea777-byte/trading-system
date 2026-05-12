@@ -52,7 +52,7 @@ PLANS: dict[str, PlanLimits] = {
         can_custom_strategy=True,
         can_export=True,
         notifications_history_days=365,
-        monthly_price_ils=349,
+        monthly_price_ils=199,
     ),
 }
 
