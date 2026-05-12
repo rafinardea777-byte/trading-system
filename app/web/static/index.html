@@ -17,6 +17,9 @@
 body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
 .sidebar{display:none}
+.sidebar-scroll{overflow-y:auto;flex:1;display:flex;flex-direction:column;min-height:0}
+.sidebar-scroll::-webkit-scrollbar{width:4px}
+.sidebar-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 @media(min-width:768px){
   .sidebar{display:flex;flex-direction:column;position:fixed;right:0;top:0;width:220px;height:100vh;background:var(--card);border-left:1px solid var(--border);padding:24px 16px;z-index:100}
   .main{margin-right:220px;padding:24px}
@@ -337,6 +340,7 @@ body{padding-bottom:70px}
   <div class="sidebar-logo">📈 Trading<span>Pro</span></div>
   <div class="sidebar-tag">מערכת סיגנלים מאוחדת</div>
   <button class="nav-item active" onclick="showPage('dashboard',this)">🏠 דשבורד</button>
+  <div class="sidebar-scroll">
   <button class="nav-item" onclick="showPage('signals',this)">🔥 סיגנלים</button>
   <button class="nav-item" onclick="showPage('watchlist',this)">⭐ Watchlist</button>
   <button class="nav-item" onclick="showPage('news',this)">📰 חדשות שוק</button>
@@ -344,9 +348,10 @@ body{padding-bottom:70px}
   <button class="nav-item" onclick="showPage('scans',this)">🛰️ ריצות סורק</button>
   <button class="nav-item" onclick="showPage('analytics',this)">📈 Analytics</button>
   <button class="nav-item logged-in-only" onclick="showPage('account',this)" style="display:none">👤 החשבון שלי</button>
-  <button class="nav-item" onclick="showPage('plans',this)">💎 שדרוג מנוי</button>
+  <button class="nav-item" onclick="showPage('plans',this)" style="color:var(--gold);font-weight:bold">💎 שדרוג מנוי</button>
   <button class="nav-item" onclick="showPage('settings',this)">⚙️ הגדרות</button>
   <button class="nav-item admin-only" onclick="showPage('admin',this)" style="display:none">👨‍💼 ניהול</button>
+  </div>
   <div class="bot-status" id="botStatus">
     <div style="display:flex;align-items:center;margin-bottom:6px">
       <span class="dot"></span>
@@ -362,8 +367,21 @@ body{padding-bottom:70px}
   <button class="mobile-nav-item" onclick="showPage('signals',this)"><span class="icon">🔥</span>סיגנלים</button>
   <button class="mobile-nav-item" onclick="showPage('watchlist',this)"><span class="icon">⭐</span>Watch</button>
   <button class="mobile-nav-item" onclick="showPage('news',this)"><span class="icon">📰</span>חדשות</button>
-  <button class="mobile-nav-item" onclick="showPage('journal',this)"><span class="icon">📋</span>יומן</button>
-  <button class="mobile-nav-item" onclick="showPage('settings',this)"><span class="icon">⚙️</span>הגדרות</button>
+  <button class="mobile-nav-item" onclick="showPage('plans',this)" style="color:var(--gold)"><span class="icon">💎</span>שדרוג</button>
+  <button class="mobile-nav-item" onclick="toggleMoreMenu(event)"><span class="icon">☰</span>עוד</button>
+</div>
+
+<!-- MORE MENU (mobile) -->
+<div id="moreMenuBg" onclick="toggleMoreMenu()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300"></div>
+<div id="moreMenu" style="display:none;position:fixed;bottom:65px;left:8px;right:8px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;z-index:301;box-shadow:0 -8px 24px rgba(0,0,0,.5)">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+    <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('journal',null)" style="padding:14px 4px"><span class="icon">📋</span>יומן</button>
+    <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('scans',null)" style="padding:14px 4px"><span class="icon">🛰️</span>סורקים</button>
+    <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('analytics',null)" style="padding:14px 4px"><span class="icon">📈</span>Analytics</button>
+    <button class="mobile-nav-item logged-in-only" onclick="toggleMoreMenu();showPage('account',null)" style="padding:14px 4px;display:none"><span class="icon">👤</span>החשבון</button>
+    <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('settings',null)" style="padding:14px 4px"><span class="icon">⚙️</span>הגדרות</button>
+    <button class="mobile-nav-item admin-only" onclick="toggleMoreMenu();showPage('admin',null)" style="padding:14px 4px;display:none"><span class="icon">👨‍💼</span>ניהול</button>
+  </div>
 </div>
 
 <div class="main">
@@ -861,6 +879,16 @@ async function validateSession() {
   }
 }
 
+
+function toggleMoreMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('moreMenu');
+  const bg = document.getElementById('moreMenuBg');
+  if (!menu) return;
+  const isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+  bg.style.display = isOpen ? 'none' : 'block';
+}
 
 function showPage(pageId, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
