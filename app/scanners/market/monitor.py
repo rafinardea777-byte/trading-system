@@ -27,20 +27,31 @@ def _current_price(symbol: str) -> Optional[float]:
         return None
 
 
+def _symbol_market_open(symbol: str) -> bool:
+    """האם הבורסה של הסמל פתוחה כרגע."""
+    from app.scheduler.jobs import is_il_market_open, is_us_market_open
+
+    if symbol.endswith(".TA"):
+        return is_il_market_open()
+    return is_us_market_open()
+
+
 def check_open_signals() -> dict:
     """בודק את כל הסיגנלים הפתוחים, סוגר אם פגעו ביעד או סטופ.
 
+    סוגר רק כשהבורסה של הסמל פתוחה - לא על נתונים סטטיים.
+
     כללי סגירה:
-    - מחיר >= target_2: סגירה מלאה ב-target_2
-    - מחיר >= target_1 (לראשונה): מסמן TP1 hit (לא סוגר עדיין - עוקב למעלה)
+    - מחיר >= target_2: סגירה מלאה
+    - מחיר >= target_1 + 3+ ימים: סגירה ברווח חלקי
     - מחיר <= stop_loss: סגירה בהפסד
-    - מחיר > entry אחרי 14 ימים בלי tp1: נסגר ב-current לרווח חלקי
-    - מחיר < entry אחרי 14 ימים: נסגר בהפסד חלקי
+    - גיל >= 14 ימים: time stop
     """
     closed_wins = 0
     closed_losses = 0
     still_open = 0
     skipped = 0
+    skipped_closed_market = 0
 
     with get_session() as session:
         from sqlmodel import select
@@ -49,6 +60,12 @@ def check_open_signals() -> dict:
         log.info("monitor_start", count=len(open_sigs))
 
         for sig in open_sigs:
+            # אל תבדוק אם הבורסה של הסמל סגורה
+            if not _symbol_market_open(sig.symbol):
+                skipped_closed_market += 1
+                still_open += 1
+                continue
+
             price = _current_price(sig.symbol)
             if price is None:
                 skipped += 1
@@ -94,12 +111,14 @@ def check_open_signals() -> dict:
         closed_losses=closed_losses,
         still_open=still_open,
         skipped=skipped,
+        skipped_closed_market=skipped_closed_market,
     )
     return {
         "closed_wins": closed_wins,
         "closed_losses": closed_losses,
         "still_open": still_open,
         "skipped": skipped,
+        "skipped_closed_market": skipped_closed_market,
     }
 
 

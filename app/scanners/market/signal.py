@@ -46,8 +46,23 @@ def _strength_score(rsi: float, vol_ratio: float, breakout_pct: float) -> float:
     return round(raw, 1)
 
 
+def _symbol_market_open(symbol: str) -> bool:
+    """האם הבורסה הרלוונטית לסמל פתוחה כרגע."""
+    from app.scheduler.jobs import is_il_market_open, is_us_market_open
+
+    if symbol.endswith(".TA"):
+        return is_il_market_open()
+    return is_us_market_open()
+
+
 def evaluate_symbol(symbol: str, df: pd.DataFrame) -> Optional[TechnicalSignal]:
-    """בדיקה אם המניה עומדת בקריטריונים. מחזיר Signal או None."""
+    """בדיקה אם המניה עומדת בקריטריונים. מחזיר Signal או None.
+
+    חוסם אוטומטית אם הבורסה של הסמל סגורה - לא יוצרים סיגנל על נתונים סטטיים.
+    """
+    if not _symbol_market_open(symbol):
+        return None
+
     if df is None or len(df) < max(settings.ma_slow, 30):
         return None
 
