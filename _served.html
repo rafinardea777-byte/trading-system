@@ -558,7 +558,7 @@ body{padding-bottom:70px}
   <!-- ANALYTICS - WATCHLIST PERFORMANCE -->
   <div class="page" id="page-analytics">
     <div class="page-title">📈 <span>Analytics Watchlist</span></div>
-    <div id="analyticsAuthGate" style="text-align:center;padding:40px;color:var(--muted)">
+    <div id="analyticsAuthGate" style="display:none;text-align:center;padding:40px;color:var(--muted)">
       <div style="font-size:48px;margin-bottom:14px">🔐</div>
       <div>נדרשת התחברות כדי לראות ביצועי Watchlist</div>
       <button class="btn btn-blue" style="margin-top:14px" onclick="openLogin()">התחבר</button>
@@ -597,21 +597,14 @@ body{padding-bottom:70px}
   <!-- ADMIN -->
   <div class="page" id="page-admin">
     <div class="page-title">👨‍💼 <span>ניהול</span></div>
-    <div id="adminAuthGate" style="text-align:center;padding:40px;color:var(--muted)">
-      <div style="font-size:48px;margin-bottom:14px">🔐</div>
-      <div>דף זה זמין למנהלים בלבד</div>
-      <button class="btn btn-blue" style="margin-top:14px" onclick="openLogin()">התחבר כאדמין</button>
-    </div>
-    <div id="adminContent" style="display:none">
-      <div class="stats-grid" id="adminStats"></div>
-      <div class="table-card" style="margin-top:14px">
-        <div class="card-header"><div class="card-title">משתמשים</div></div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>#</th><th>מייל</th><th>שם</th><th>תוכנית</th><th>פעיל</th><th>נרשם</th><th>נכנס</th><th>WL</th><th>פעולות</th></tr></thead>
-            <tbody id="adminUsersBody"><tr><td colspan="9" style="text-align:center;color:var(--muted)">טוען...</td></tr></tbody>
-          </table>
-        </div>
+    <div class="stats-grid" id="adminStats"></div>
+    <div class="table-card" style="margin-top:14px">
+      <div class="card-header"><div class="card-title">משתמשים</div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>מייל</th><th>שם</th><th>תוכנית</th><th>פעיל</th><th>נרשם</th><th>נכנס</th><th>WL</th><th>פעולות</th></tr></thead>
+          <tbody id="adminUsersBody"><tr><td colspan="9" style="text-align:center;color:var(--muted)">טוען...</td></tr></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -1218,21 +1211,18 @@ async function loadScans() {
 async function loadHealth() {
   const h = await api('/api/system/health');
   if (!h) return;
-  const hidden = '🔒 נדרשת התחברות כאדמין';
-  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-
-  setText('cfgEnv', h.env || hidden);
-  setText('cfgMode', h.trading_mode === 'paper' ? '📝 paper (סימולציה)' : (h.trading_mode === 'live' ? '💰 live' : (h.trading_mode || '--')));
-  setText('cfgX', h.use_x_api === undefined ? hidden : (h.use_x_api ? '✅ פעיל' : '❌ לא מוגדר (משתמש ב-RSS)'));
-  setText('cfgAI', h.use_openai === undefined ? hidden : (h.use_openai ? '✅ פעיל' : '❌ לא מוגדר'));
-  setText('cfgTg', h.telegram_alerts === undefined ? hidden : (h.telegram_alerts ? '✅ פעיל' : '❌ כבוי'));
+  document.getElementById('cfgEnv').textContent = h.env;
+  document.getElementById('cfgMode').textContent = h.trading_mode === 'paper' ? '📝 paper (סימולציה)' : '💰 live';
+  document.getElementById('cfgX').textContent = h.use_x_api ? '✅ פעיל' : '❌ לא מוגדר (משתמש ב-RSS)';
+  document.getElementById('cfgAI').textContent = h.use_openai ? '✅ פעיל' : '❌ לא מוגדר';
+  document.getElementById('cfgTg').textContent = h.telegram_alerts ? '✅ פעיל' : '❌ כבוי';
 
   const lbl = h.use_x_api || h.use_openai ? 'בוט פעיל' : 'בוט במצב בסיסי';
-  setText('botStatusLabel', lbl);
-  setText('botStatusLabelMobile', lbl);
-  const mode = `מצב: ${h.trading_mode || '--'}`;
-  setText('botStatusMode', mode);
-  setText('botStatusModeMobile', mode);
+  document.getElementById('botStatusLabel').textContent = lbl;
+  document.getElementById('botStatusLabelMobile').textContent = lbl;
+  const mode = `מצב: ${h.trading_mode}`;
+  document.getElementById('botStatusMode').textContent = mode;
+  document.getElementById('botStatusModeMobile').textContent = mode;
 }
 
 function getAdminKey() {
@@ -1553,15 +1543,7 @@ function pctClass(v) {
 
 // ============= ADMIN =============
 async function loadAdmin() {
-  const gate = document.getElementById('adminAuthGate');
-  const content = document.getElementById('adminContent');
-  if (!getUser()?.is_admin) {
-    if (gate) gate.style.display = '';
-    if (content) content.style.display = 'none';
-    return;
-  }
-  if (gate) gate.style.display = 'none';
-  if (content) content.style.display = '';
+  if (!getUser()?.is_admin) { toast('דף זה זמין למנהלים בלבד'); return; }
   await Promise.all([loadAdminStats(), loadAdminUsers()]);
 }
 

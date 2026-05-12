@@ -48,18 +48,20 @@ def require_pro_or_admin_key(
 
 
 @router.get("/health")
-def health():
-    """מצב מערכת - חשיפת מפתחות מצומצמת ב-public_mode."""
+def health(user: Optional[User] = Depends(optional_user)):
+    """מצב מערכת - מציג מידע מלא לאדמין, מוסתר לציבור."""
     base = {"status": "ok", "trading_mode": settings.trading_mode}
-    if settings.public_mode:
-        return base
-    return {
-        **base,
-        "env": settings.app_env,
-        "use_x_api": settings.use_x_api,
-        "use_openai": settings.use_openai,
-        "telegram_alerts": settings.enable_telegram_alerts,
-    }
+    # אדמין מחובר תמיד מקבל מלא; ב-development גם הכל נחשף
+    if (user and user.is_admin) or not settings.public_mode:
+        return {
+            **base,
+            "env": settings.app_env,
+            "use_x_api": settings.use_x_api,
+            "use_openai": settings.use_openai,
+            "telegram_alerts": settings.enable_telegram_alerts,
+            "public_mode": settings.public_mode,
+        }
+    return base
 
 
 @router.post("/scan/news", response_model=JobResult, dependencies=[Depends(require_pro_or_admin_key)])
