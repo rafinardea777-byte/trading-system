@@ -27,12 +27,17 @@ def is_us_market_open(now: datetime | None = None) -> bool:
 
 
 def is_il_market_open(now: datetime | None = None) -> bool:
-    """TASE: א'-ה' 09:30-17:14 שעון ישראל. לא בשישי-שבת."""
+    """TASE עדכון 2026: שני-שישי 09:30-17:14 שעון ישראל. סגור שבת-ראשון.
+
+    Python weekday: Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+    """
     il = (now or datetime.now(_IL)).astimezone(_IL)
-    # Python weekday: Mon=0..Sun=6. ישראל: ראשון=6, ב-ה=0-3
-    if il.weekday() not in (6, 0, 1, 2, 3):
+    if il.weekday() not in (0, 1, 2, 3, 4):  # Mon-Fri
         return False
     minutes = il.hour * 60 + il.minute
+    # יום שישי - סיום מוקדם יותר ב-14:30 (סיום מסחר רציף)
+    if il.weekday() == 4:
+        return 570 <= minutes <= 870  # 09:30 to 14:30
     return 570 <= minutes <= 1034  # 09:30 to 17:14
 
 
