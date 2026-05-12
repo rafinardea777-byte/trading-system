@@ -54,47 +54,43 @@ def _sentiment_for_text(text: str) -> str:
     return "neutral"
 
 
-def _engagement_from(item: NewsItem) -> float:
+def _engagement_from(item: dict) -> float:
     """ניקוד מעורבות - מתוך הטקסט עצמו (Reddit upvotes נמצאים בכותרת)."""
-    text = item.text
+    text = item.get("text", "")
     score = 1.0
-    # Reddit: [👍 6763 | 💬 245]
     m = re.search(r"👍\s*(\d+)", text)
     if m:
-        score += min(float(m.group(1)) / 500, 20)  # cap at 20
+        score += min(float(m.group(1)) / 500, 20)
     m = re.search(r"💬\s*(\d+)", text)
     if m:
-        score += min(float(m.group(1)) / 100, 10)  # cap at 10
-    # StockTwits Bullish/Bearish - boost slightly
+        score += min(float(m.group(1)) / 100, 10)
     if "📈" in text or "📉" in text:
         score += 2
     return score
 
 
-def _primary_symbol(item: NewsItem) -> Optional[str]:
+def _primary_symbol_dict(item: dict) -> Optional[str]:
     """בוחר את הסמל הראשי של פריט (אם יש כמה, הכי קצר)."""
-    if not item.mentioned_symbols:
+    syms_str = item.get("mentioned_symbols")
+    if not syms_str:
         return None
-    syms = [s for s in item.mentioned_symbols.split(",") if s and s not in _BLACKLIST]
+    syms = [s for s in syms_str.split(",") if s and s not in _BLACKLIST]
     if not syms:
         return None
-    # מעדיף סמלים של 3-4 אותיות (הכי תקניים)
     syms.sort(key=lambda s: (len(s) not in (3, 4), len(s)))
     return syms[0]
 
 
-def _pick_best_item(items: list[NewsItem]) -> NewsItem:
-    """הפריט הכי מייצג בקבוצה: עדיף תרגום מלא, אחרת ה-engagement הגבוה."""
-    by_score = sorted(
+def _pick_best_item(items: list[dict]) -> dict:
+    return sorted(
         items,
         key=lambda i: (
-            1 if i.hebrew_translation else 0,
+            1 if i.get("hebrew_translation") else 0,
             _engagement_from(i),
-            i.fetched_at,
+            i.get("fetched_at") or datetime.min,
         ),
         reverse=True,
-    )
-    return by_score[0]
+    )[0]
 
 
 @router.get("/digest", response_model=list[DigestGroup])
@@ -114,14 +110,23 @@ def news_digest(
     """
     cutoff = datetime.utcnow() - timedelta(hours=hours_back)
 
+    # נטען את כל המידע הנדרש בתוך ה-session ונחלץ ל-dicts לפני שהוא נסגר
+    plain_rows: list[dict] = []
+    wl_set: set[str] = set()
     with get_session() as session:
-        rows = list(session.exec(
+        for r in session.exec(
             select(NewsItem)
             .where(NewsItem.fetched_at >= cutoff)
             .order_by(NewsItem.fetched_at.desc())
-        ))
-
-        wl_set: set[str] = set()
+        ):
+            plain_rows.append({
+                "id": r.id, "source": r.source, "author": r.author,
+                "text": r.text, "url": r.url or "",
+                "hebrew_translation": r.hebrew_translation,
+                "hebrew_explanation": r.hebrew_explanation,
+                "fetched_at": r.fetched_at,
+                "mentioned_symbols": r.mentioned_symbols,
+            })
         if user:
             wl_set = {
                 r.symbol for r in session.exec(
@@ -130,23 +135,23 @@ def news_digest(
             }
 
     # קיבוץ לפי symbol (None = "כללי")
-    groups: dict[Optional[str], list[NewsItem]] = defaultdict(list)
-    for r in rows:
-        sym = _primary_symbol(r)
+    groups: dict[Optional[str], list[dict]] = defaultdict(list)
+    for r in plain_rows:
+        sym = _primary_symbol_dict(r)
         groups[sym].append(r)
 
     # בנה DigestGroup לכל קבוצה
-    digest_groups: list[DigestGroup] = []
+    digest_groups: list = []
     for sym, items in groups.items():
         if not items:
             continue
 
-        sources = list({i.source for i in items})
+        sources = list({i["source"] for i in items})
         top = _pick_best_item(items)
-        latest = max(items, key=lambda i: i.fetched_at).fetched_at
+        latest = max(items, key=lambda i: i["fetched_at"])["fetched_at"]
 
         # סנטימנט מאוחד
-        sentiments = [_sentiment_for_text(i.text) for i in items]
+        sentiments = [_sentiment_for_text(i["text"]) for i in items]
         bull = sentiments.count("bullish")
         bear = sentiments.count("bearish")
         if bull > bear and bull >= 2:
@@ -158,35 +163,22 @@ def news_digest(
         else:
             sentiment = "neutral"
 
-        # ציון engagement
         eng = sum(_engagement_from(i) for i in items)
-
         is_wl = sym is not None and sym in wl_set
-
-        # ציון חשיבות סופי
         importance = len(sources) * 3 + min(eng, 30) + (15 if is_wl else 0)
 
         digest_groups.append((importance, DigestGroup(
             symbol=sym,
             headline_count=len(items),
             sources=sorted(sources),
-            top_item=DigestItem(
-                id=top.id, source=top.source, author=top.author,
-                text=top.text, hebrew_translation=top.hebrew_translation,
-                hebrew_explanation=top.hebrew_explanation,
-                url=top.url, fetched_at=top.fetched_at,
-            ),
+            top_item=DigestItem(**{k: top[k] for k in ("id","source","author","text","hebrew_translation","hebrew_explanation","url","fetched_at")}),
             sentiment=sentiment,
             engagement_score=round(eng, 1),
             is_watchlist=is_wl,
             latest_at=latest,
             items=[
-                DigestItem(
-                    id=i.id, source=i.source, author=i.author,
-                    text=i.text, hebrew_translation=i.hebrew_translation,
-                    hebrew_explanation=i.hebrew_explanation,
-                    url=i.url, fetched_at=i.fetched_at,
-                ) for i in sorted(items, key=lambda x: x.fetched_at, reverse=True)
+                DigestItem(**{k: i[k] for k in ("id","source","author","text","hebrew_translation","hebrew_explanation","url","fetched_at")})
+                for i in sorted(items, key=lambda x: x["fetched_at"], reverse=True)
             ][:8],
         )))
 
