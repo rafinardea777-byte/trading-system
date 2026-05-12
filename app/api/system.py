@@ -18,32 +18,33 @@ import secrets
 from fastapi import Header
 
 
-def require_pro_or_admin_key(
+def require_authed_or_admin_key(
     user: Optional[User] = Depends(optional_user),
     x_admin_key: Optional[str] = Header(default=None),
 ):
-    """מאפשר: (א) משתמש מחובר Pro+ או admin, (ב) X-Admin-Key תקין."""
-    # משתמש Pro+ או admin
-    if user and (user.is_admin or limits_for(user).can_manual_scan):
-        return user
-    # admin key מעוקף ב-public_mode=False (פיתוח)
+    """סריקה ידנית: כל משתמש מחובר (כולל FREE), או Admin Key לחיצוני אנונימי.
+
+    אנונימי לחלוטין נחסם כדי למנוע DDoS חיצוני.
+    """
+    if user:
+        if user.is_admin or limits_for(user).can_manual_scan:
+            return user
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="התוכנית שלך לא תומכת בסריקה ידנית",
+        )
+    # אנונימי - חובה Admin Key ב-public_mode
     if not settings.public_mode:
         return None
-    # public mode - בדוק admin key
     if (
         x_admin_key
         and settings.admin_api_key
         and secrets.compare_digest(x_admin_key, settings.admin_api_key)
     ):
         return None
-    if user:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="סריקה ידנית זמינה למנויי Pro ומעלה",
-        )
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="חובה להתחבר או להזין מפתח admin",
+        detail="חובה להתחבר כדי להפעיל סריקה",
     )
 
 
@@ -64,7 +65,7 @@ def health(user: Optional[User] = Depends(optional_user)):
     return base
 
 
-@router.post("/scan/news", response_model=JobResult, dependencies=[Depends(require_pro_or_admin_key)])
+@router.post("/scan/news", response_model=JobResult, dependencies=[Depends(require_authed_or_admin_key)])
 def trigger_news_scan(background: BackgroundTasks):
     """מפעיל סריקת חדשות ברקע. Pro+ או admin key."""
     from app.scanners.news import run_news_scan
@@ -73,7 +74,7 @@ def trigger_news_scan(background: BackgroundTasks):
     return JobResult(ok=True, detail={"queued": "news_scan"})
 
 
-@router.post("/scan/market", response_model=JobResult, dependencies=[Depends(require_pro_or_admin_key)])
+@router.post("/scan/market", response_model=JobResult, dependencies=[Depends(require_authed_or_admin_key)])
 def trigger_market_scan(background: BackgroundTasks, max_symbols: int | None = None):
     """מפעיל סריקת שוק ברקע. Pro+ או admin key."""
     from app.scanners.market import run_market_scan
@@ -82,7 +83,7 @@ def trigger_market_scan(background: BackgroundTasks, max_symbols: int | None = N
     return JobResult(ok=True, detail={"queued": "market_scan", "max_symbols": max_symbols})
 
 
-@router.post("/monitor/run", response_model=JobResult, dependencies=[Depends(require_pro_or_admin_key)])
+@router.post("/monitor/run", response_model=JobResult, dependencies=[Depends(require_authed_or_admin_key)])
 def trigger_monitor(background: BackgroundTasks):
     """בודק את כל הסיגנלים הפתוחים וסוגר כשרלוונטי."""
     from app.scanners.market.monitor import check_open_signals
