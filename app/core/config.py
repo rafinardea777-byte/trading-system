@@ -124,3 +124,27 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def _validate_settings() -> None:
+    """בדיקות נחיתה בעלייה - מונע הרצה ב-public_mode עם הגדרות מסוכנות."""
+    weak_secrets = {
+        "change-me-in-production-please-use-secrets-token-urlsafe-32",
+        "",
+        "secret",
+        "change-me",
+    }
+    if settings.public_mode:
+        if settings.jwt_secret in weak_secrets or len(settings.jwt_secret) < 32:
+            import sys
+            sys.stderr.write(
+                "FATAL: JWT_SECRET is weak/default in public_mode.\n"
+                "Generate strong secret: python -c \"import secrets; print(secrets.token_urlsafe(48))\"\n"
+            )
+            raise RuntimeError("JWT_SECRET too weak for public_mode")
+        if not settings.admin_api_key:
+            import sys
+            sys.stderr.write("WARN: public_mode=True but ADMIN_API_KEY is empty.\n")
+
+
+_validate_settings()

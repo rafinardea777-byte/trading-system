@@ -27,15 +27,6 @@ def _current_price(symbol: str) -> Optional[float]:
         return None
 
 
-def _symbol_market_open(symbol: str) -> bool:
-    """האם הבורסה של הסמל פתוחה כרגע."""
-    from app.scheduler.jobs import is_il_market_open, is_us_market_open
-
-    if symbol.endswith(".TA"):
-        return is_il_market_open()
-    return is_us_market_open()
-
-
 def check_open_signals() -> dict:
     """בודק את כל הסיגנלים הפתוחים, סוגר אם פגעו ביעד או סטופ.
 
@@ -59,9 +50,11 @@ def check_open_signals() -> dict:
         open_sigs = list(session.exec(select(Signal).where(Signal.status == "open")))
         log.info("monitor_start", count=len(open_sigs))
 
+        from app.scheduler.jobs import is_symbol_market_open
+
         for sig in open_sigs:
             # אל תבדוק אם הבורסה של הסמל סגורה
-            if not _symbol_market_open(sig.symbol):
+            if not is_symbol_market_open(sig.symbol):
                 skipped_closed_market += 1
                 still_open += 1
                 continue

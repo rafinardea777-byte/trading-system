@@ -1,4 +1,5 @@
 """חיבור DB + יצירת טבלאות. תומך SQLite (לוקאלי) ו-Postgres (cloud)."""
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -69,16 +70,37 @@ def init_db() -> None:
             _add_column_if_missing(conn, "user", "accepted_terms_at", "TEXT")
 
 
+_VALID_TABLE = re.compile(r"^[a-z_][a-z0-9_]*$")
+_VALID_COLUMN = re.compile(r"^[a-z_][a-z0-9_]*$")
+_VALID_COL_DEF = re.compile(r"^[A-Z][A-Z0-9_ \(\)']*$", re.IGNORECASE)
+
+
 def _add_column_if_missing(conn, table: str, column: str, col_def: str) -> None:
-    """SQLite ALTER TABLE ADD COLUMN - idempotent."""
+    """SQLite ALTER TABLE ADD COLUMN - idempotent. Validates identifiers to prevent injection."""
     from sqlalchemy import text
+
+    # אימות שמות (idempotent migrations - שמות מקור פנימי, אבל חגורה+שלייקס)
+    if not _VALID_TABLE.match(table):
+        from app.core.logging import get_logger
+        get_logger(__name__).error("migration_invalid_table", table=table)
+        return
+    if not _VALID_COLUMN.match(column):
+        from app.core.logging import get_logger
+        get_logger(__name__).error("migration_invalid_column", column=column)
+        return
+    if not _VALID_COL_DEF.match(col_def):
+        from app.core.logging import get_logger
+        get_logger(__name__).error("migration_invalid_coldef", col_def=col_def)
+        return
+
     try:
-        rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+        rows = conn.execute(text(f'PRAGMA table_info("{table}")')).fetchall()
         existing = {r[1] for r in rows}
         if column not in existing:
-            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"))
-    except Exception:
-        pass
+            conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {col_def}'))
+    except Exception as e:
+        from app.core.logging import get_logger
+        get_logger(__name__).warning("migration_failed", table=table, column=column, error=str(e))
 
 
 @contextmanager

@@ -45,6 +45,13 @@ def is_any_market_open(now: datetime | None = None) -> bool:
     return is_us_market_open(now) or is_il_market_open(now)
 
 
+def is_symbol_market_open(symbol: str, now: datetime | None = None) -> bool:
+    """האם הבורסה של הסמל הספציפי פתוחה כרגע."""
+    if symbol.endswith(".TA"):
+        return is_il_market_open(now)
+    return is_us_market_open(now)
+
+
 def _news_job():
     from app.scanners.news import run_news_scan
     try:

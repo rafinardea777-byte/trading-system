@@ -1,6 +1,6 @@
 """נקודות API לחדשות."""
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import select
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 def list_news(
     hours_back: int = Query(24, ge=1, le=24 * 7),
     limit: int = Query(100, ge=1, le=500),
-    source: Optional[str] = Query(None, description="twitter | rss"),
+    source: Optional[Literal["twitter", "rss", "stocktwits", "reddit"]] = Query(None),
     watchlist_only: bool = Query(False, description="רק חדשות שמזכירות מניות מה-watchlist"),
     since_id: Optional[int] = Query(None, description="רק חדשות שה-id שלהן גדול מהערך הזה"),
     user: Optional[User] = Depends(optional_user),

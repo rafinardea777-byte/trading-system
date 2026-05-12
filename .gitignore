@@ -58,6 +58,12 @@ tunnel.log.err
 Thumbs.db
 desktop.ini
 
+# Debug / temp files
+_served.html
+_tmp/
+_tmp_*.html
+_tmp_*.txt
+
 # Cloudflare tunnel binary (יורד אוטומטית)
 bin/cloudflared.exe
 bin/

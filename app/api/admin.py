@@ -33,14 +33,18 @@ class UserPatch(BaseModel):
 
 @router.get("/users", response_model=list[AdminUserOut])
 def list_users(_: User = Depends(require_admin_user)):
+    """מחזיר רשימת משתמשים עם ספירת Watchlist (one-query עם GROUP BY)."""
+    from sqlalchemy import func
     with get_session() as session:
         users = list(session.exec(select(User).order_by(User.created_at.desc())))
-        out = []
-        for u in users:
-            wc = len(list(session.exec(
-                select(UserWatchlist).where(UserWatchlist.user_id == u.id)
-            )))
-            out.append(AdminUserOut(
+        # ספירת watchlist בבת אחת עבור כל המשתמשים
+        rows = session.exec(
+            select(UserWatchlist.user_id, func.count(UserWatchlist.id))
+            .group_by(UserWatchlist.user_id)
+        ).all()
+        wl_counts = {uid: cnt for uid, cnt in rows}
+        return [
+            AdminUserOut(
                 id=u.id,
                 email=u.email,
                 full_name=u.full_name,
@@ -49,13 +53,15 @@ def list_users(_: User = Depends(require_admin_user)):
                 is_active=u.is_active,
                 created_at=u.created_at,
                 last_login_at=u.last_login_at,
-                watchlist_count=wc,
-            ))
-        return out
+                watchlist_count=wl_counts.get(u.id, 0),
+            )
+            for u in users
+        ]
 
 
 @router.patch("/users/{user_id}", response_model=AdminUserOut)
 def update_user(user_id: int, data: UserPatch, admin: User = Depends(require_admin_user)):
+    from sqlalchemy import func
     with get_session() as session:
         u = session.get(User, user_id)
         if not u:
@@ -73,9 +79,9 @@ def update_user(user_id: int, data: UserPatch, admin: User = Depends(require_adm
             u.is_admin = data.is_admin
         session.add(u)
         session.flush()
-        wc = len(list(session.exec(
-            select(UserWatchlist).where(UserWatchlist.user_id == u.id)
-        )))
+        wc = session.exec(
+            select(func.count(UserWatchlist.id)).where(UserWatchlist.user_id == u.id)
+        ).one() or 0
         return AdminUserOut(
             id=u.id, email=u.email, full_name=u.full_name, plan=u.plan,
             is_admin=u.is_admin, is_active=u.is_active,

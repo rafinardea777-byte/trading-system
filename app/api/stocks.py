@@ -1,4 +1,5 @@
 """Stock detail endpoint - יסודות + נתוני מסחר + סריקה טכנית."""
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -177,14 +178,24 @@ def get_stock(symbol: str):
     return snap
 
 
+_VALID_PERIODS = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"}
+_VALID_INTERVALS = {"1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"}
+
+
 @router.get("/{symbol}/history")
 def get_stock_history(
     symbol: str,
-    period: str = Query("3mo", description="1mo|3mo|6mo|1y|2y|5y|max"),
-    interval: str = Query("1d", description="1m|5m|15m|30m|1h|1d|1wk|1mo"),
+    period: str = Query("3mo"),
+    interval: str = Query("1d"),
 ):
     """OHLC חתוך לפרק זמן + interval (לציור גרף נרות)."""
     symbol = symbol.upper().strip()
+    if not re.match(r"^[A-Z]{1,6}(\.[A-Z]{1,3})?$", symbol):
+        raise HTTPException(status_code=400, detail="invalid symbol")
+    if period not in _VALID_PERIODS:
+        raise HTTPException(status_code=400, detail=f"invalid period (allowed: {sorted(_VALID_PERIODS)})")
+    if interval not in _VALID_INTERVALS:
+        raise HTTPException(status_code=400, detail=f"invalid interval (allowed: {sorted(_VALID_INTERVALS)})")
     try:
         import yfinance as yf
 
