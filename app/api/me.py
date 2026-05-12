@@ -74,6 +74,30 @@ def add_watchlist(data: WatchlistAddIn, user: User = Depends(current_user)):
         item = UserWatchlist(user_id=user.id, symbol=sym, note=data.note)
         session.add(item)
         session.flush()
+
+        # יצירת התראות על חדשות עבר (24h) שמזכירות את המנייה
+        from datetime import timedelta
+        from app.storage import NewsItem
+        from app.storage.repository import add_notification
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        recent_news = list(session.exec(
+            select(NewsItem).where(
+                NewsItem.fetched_at >= cutoff,
+                NewsItem.mentioned_symbols.is_not(None),
+            ).limit(50)
+        ))
+        for ni in recent_news:
+            if sym in (ni.mentioned_symbols or "").split(","):
+                add_notification(
+                    session,
+                    kind="news",
+                    title=f"📰 {sym}: חדשות מעקב חדשות",
+                    message=ni.text[:200],
+                    symbol=sym,
+                    icon="📰",
+                    user_id=user.id,
+                )
+
         return WatchlistItemOut(symbol=item.symbol, note=item.note, added_at=item.added_at)
 
 

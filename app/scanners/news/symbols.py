@@ -18,6 +18,18 @@ _BLACKLIST = {
     "DOW", "JONES", "NEWS", "RATE", "CUT", "CUTS", "EARNINGS", "JOBS",
     "INFLATION", "RECESSION", "RALLY", "CRASH", "RECORD", "HIGH", "LOW",
     "OPEN", "CLOSE", "BUY", "SELL", "HOLD", "BULL", "BEAR",
+    # מקורות תקשורת - שלא ייתפסו כסמלים
+    "CNBC", "BBCNEWS", "ABCNEWS", "NBCNEWS", "CBSNEWS", "FOX", "AXIOS",
+    "BLOOMBERG", "REUTERS", "FORBES", "CNN", "BBC", "ABC", "NBC", "CBS",
+    "TWITTER", "X", "META", "PRESS", "RELEASE",
+    # מילים תכופות בכותרות
+    "QUARTER", "YEAR", "MONTH", "WEEK", "DAY", "TIME", "PRICE", "DEAL",
+    "PLAN", "PLANS", "REPORT", "STUDY", "SAID", "SAYS", "TELLS", "ASKS",
+    "AHEAD", "AFTER", "BEFORE", "DURING", "WHILE", "WHEN", "WHERE",
+    "WHAT", "WHY", "HOW", "WHO", "THE", "AND", "BUT", "FOR", "WITH",
+    "POSTS", "POST", "VIEWS", "VIEW", "TAKES", "TAKE", "TAKING",
+    "NEAR", "OVER", "UNDER", "ABOVE", "BELOW", "INTO", "FROM", "TO",
+    "TIPS", "TIP", "DEAL", "DEALS", "TALK", "TALKS", "FACE", "FACES",
 }
 
 # מיפוי שם חברה → סמל. רק חברות נפוצות מאוד שיופיעו בחדשות.
