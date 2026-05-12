@@ -60,7 +60,13 @@ def evaluate_symbol(symbol: str, df: pd.DataFrame) -> Optional[TechnicalSignal]:
     last = df.iloc[-1]
 
     price = float(last["Close"])
-    if not (settings.scan_min_price <= price <= settings.scan_max_price):
+
+    # TASE מחירים באגורות (1 ש"ח = 100 אגורות). מרחיב את הטווח בהתאם
+    is_tase = symbol.endswith(".TA")
+    min_price = settings.scan_min_price
+    max_price = settings.scan_max_price * (100 if is_tase else 1)
+
+    if not (min_price <= price <= max_price):
         return None
 
     vol_ratio = float(last["VOL_RATIO"]) if pd.notna(last["VOL_RATIO"]) else 0

@@ -14,6 +14,7 @@ log = get_logger(__name__)
 _scheduler: Optional[BackgroundScheduler] = None
 
 _NY = ZoneInfo("America/New_York")
+_IL = ZoneInfo("Asia/Jerusalem")
 
 
 def is_us_market_open(now: datetime | None = None) -> bool:
@@ -23,6 +24,20 @@ def is_us_market_open(now: datetime | None = None) -> bool:
         return False
     minutes = et.hour * 60 + et.minute
     return 570 <= minutes <= 960  # 09:30=570, 16:00=960
+
+
+def is_il_market_open(now: datetime | None = None) -> bool:
+    """TASE: א'-ה' 09:30-17:14 שעון ישראל. לא בשישי-שבת."""
+    il = (now or datetime.now(_IL)).astimezone(_IL)
+    # Python weekday: Mon=0..Sun=6. ישראל: ראשון=6, ב-ה=0-3
+    if il.weekday() not in (6, 0, 1, 2, 3):
+        return False
+    minutes = il.hour * 60 + il.minute
+    return 570 <= minutes <= 1034  # 09:30 to 17:14
+
+
+def is_any_market_open(now: datetime | None = None) -> bool:
+    return is_us_market_open(now) or is_il_market_open(now)
 
 
 def _news_job():
@@ -35,15 +50,20 @@ def _news_job():
 
 
 def _market_job():
-    # סריקה רק כשהשוק פתוח - חיסכון משאבים, נתונים אקטואליים
-    if not is_us_market_open():
-        log.info("market_scan_skipped", reason="market_closed")
+    # סריקה רק כשלפחות אחד השווקים פתוח - US או TASE
+    if not is_any_market_open():
+        log.info("market_scan_skipped", reason="all_markets_closed")
         return
 
     from app.scanners.market import run_market_scan
     try:
         result = run_market_scan(include_sp500=False)
-        log.info("scheduled_market_scan_done", **result)
+        log.info(
+            "scheduled_market_scan_done",
+            us_open=is_us_market_open(),
+            il_open=is_il_market_open(),
+            **result,
+        )
     except Exception as e:
         log.error("scheduled_market_scan_failed", error=str(e))
 
