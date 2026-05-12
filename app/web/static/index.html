@@ -370,7 +370,7 @@ body{padding-bottom:70px}
     <div class="logo">📈 Trading<span>Pro</span></div>
     <div class="topbar-right">
       <div class="search-wrap">
-        <input id="symSearch" type="search" placeholder="🔍 חפש מנייה (AAPL, NVDA...)" maxlength="6" autocomplete="off"
+        <input id="symSearch" type="search" placeholder="🔍 חפש מנייה (NVDA, POLI.TA...)" maxlength="10" autocomplete="off"
                oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')doSearch()" />
         <button class="btn btn-blue" onclick="doSearch()">פתח</button>
       </div>
@@ -429,7 +429,7 @@ body{padding-bottom:70px}
   <div class="page" id="page-watchlist">
     <div class="page-title">⭐ <span>Watchlist</span></div>
     <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <input id="wlAddInput" type="text" placeholder="הוסף סמל (למשל NVDA)" maxlength="6"
+      <input id="wlAddInput" type="text" placeholder="הוסף סמל (NVDA, POLI.TA...)" maxlength="10"
              oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')wlAdd()"
              style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px;width:160px;direction:ltr;text-align:left">
       <button class="btn btn-blue" onclick="wlAdd()">➕ הוסף</button>
@@ -1789,7 +1789,8 @@ async function wlToggle(sym) {
 async function wlAdd() {
   const input = document.getElementById('wlAddInput');
   const sym = (input.value || '').trim().toUpperCase();
-  if (!/^[A-Z]{1,6}$/.test(sym)) { toast('סמל לא תקין'); return; }
+  // אפשר NVDA, גם BRK.B וגם POLI.TA
+  if (!/^[A-Z]{1,6}(\.[A-Z]{1,3})?$/.test(sym)) { toast('סמל לא תקין (דוגמה: NVDA, POLI.TA)'); return; }
   if (wlHas(sym)) { toast('כבר ב-Watchlist'); return; }
   await wlToggle(sym);
   input.value = '';
@@ -1856,7 +1857,7 @@ function doSearch() {
   const input = document.getElementById('symSearch');
   const sym = (input.value || '').trim().toUpperCase();
   if (!sym) { toast('הזן סמל מנייה'); return; }
-  if (!/^[A-Z]{1,6}$/.test(sym)) { toast('סמל לא תקין'); return; }
+  if (!/^[A-Z]{1,6}(\.[A-Z]{1,3})?$/.test(sym)) { toast('סמל לא תקין (דוגמה: NVDA, POLI.TA)'); return; }
   openStock(sym);
   input.blur();
 }

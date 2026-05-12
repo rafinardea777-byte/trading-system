@@ -32,6 +32,14 @@ def _norm(sym: str) -> str:
     return (sym or "").strip().upper()
 
 
+def _valid_symbol(sym: str) -> bool:
+    """אפשר אותיות, ספרות ונקודה (לדוגמה POLI.TA, BRK.B)."""
+    if not sym or len(sym) > 10:
+        return False
+    import re
+    return bool(re.match(r"^[A-Z]{1,6}(\.[A-Z]{1,3})?$", sym))
+
+
 @router.get("/watchlist", response_model=list[WatchlistItemOut])
 def list_watchlist(user: User = Depends(current_user)):
     with get_session() as session:
@@ -46,7 +54,7 @@ def list_watchlist(user: User = Depends(current_user)):
 @router.post("/watchlist", response_model=WatchlistItemOut, status_code=status.HTTP_201_CREATED)
 def add_watchlist(data: WatchlistAddIn, user: User = Depends(current_user)):
     sym = _norm(data.symbol)
-    if not sym.isalpha():
+    if not _valid_symbol(sym):
         raise HTTPException(status_code=400, detail="סמל לא תקין")
     plan = limits_for(user)
 
@@ -302,7 +310,7 @@ def sync_watchlist(data: WatchlistBulkIn, user: User = Depends(current_user)):
         }
         for raw in data.symbols:
             sym = _norm(raw)
-            if not sym.isalpha() or len(sym) > 8 or sym in existing_syms:
+            if not _valid_symbol(sym) or sym in existing_syms:
                 continue
             session.add(UserWatchlist(user_id=user.id, symbol=sym))
             existing_syms.add(sym)
