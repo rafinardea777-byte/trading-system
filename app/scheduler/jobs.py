@@ -48,6 +48,16 @@ def _market_job():
         log.error("scheduled_market_scan_failed", error=str(e))
 
 
+def _monitor_job():
+    """בדיקת סיגנלים פתוחים - סוגר כשמגיעים ליעד/סטופ. רץ גם כשהשוק סגור (yfinance זמין 24/7)."""
+    from app.scanners.market.monitor import check_open_signals
+    try:
+        result = check_open_signals()
+        log.info("scheduled_monitor_done", **result)
+    except Exception as e:
+        log.error("scheduled_monitor_failed", error=str(e))
+
+
 def start_scheduler() -> None:
     global _scheduler
     if _scheduler:
@@ -70,11 +80,21 @@ def start_scheduler() -> None:
         max_instances=1,
         coalesce=True,
     )
+    # Signal monitor - בודק סגירות אוטומטיות כל שעתיים
+    _scheduler.add_job(
+        _monitor_job,
+        IntervalTrigger(hours=2),
+        id="signal_monitor",
+        next_run_time=datetime.now(),
+        max_instances=1,
+        coalesce=True,
+    )
     _scheduler.start()
     log.info(
         "scheduler_started",
         news_every_h=settings.news_scan_interval_hours,
         market_every_min=settings.market_scan_interval_minutes,
+        monitor_every_h=2,
     )
 
 

@@ -306,6 +306,7 @@ body{padding-bottom:70px}
   <button class="nav-item" onclick="showPage('news',this)">📰 חדשות שוק</button>
   <button class="nav-item" onclick="showPage('journal',this)">📋 יומן עסקאות</button>
   <button class="nav-item" onclick="showPage('scans',this)">🛰️ ריצות סורק</button>
+  <button class="nav-item" onclick="showPage('analytics',this)">📈 Analytics</button>
   <button class="nav-item" onclick="showPage('plans',this)">💎 שדרוג מנוי</button>
   <button class="nav-item" onclick="showPage('settings',this)">⚙️ הגדרות</button>
   <button class="nav-item admin-only" onclick="showPage('admin',this)" style="display:none">👨‍💼 ניהול</button>
@@ -505,6 +506,35 @@ body{padding-bottom:70px}
           <h4>📷 Finviz Snapshot</h4>
           <a id="finvizLink" target="_blank" rel="noopener" class="info-link">פתח דף מלא ב-Finviz ↗</a>
           <img class="finviz-img" id="finvizImg" alt="Finviz chart" loading="lazy">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYTICS - WATCHLIST PERFORMANCE -->
+  <div class="page" id="page-analytics">
+    <div class="page-title">📈 <span>Analytics Watchlist</span></div>
+    <div id="analyticsAuthGate" style="display:none;text-align:center;padding:40px;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:14px">🔐</div>
+      <div>נדרשת התחברות כדי לראות ביצועי Watchlist</div>
+      <button class="btn btn-blue" style="margin-top:14px" onclick="openLogin()">התחבר</button>
+    </div>
+    <div id="analyticsContent" style="display:none">
+      <div class="stats-grid" id="anStats"></div>
+      <div class="chart-card" style="margin-top:14px">
+        <div class="card-header">
+          <div class="card-title">🏆 הבולטים השבוע</div>
+          <button class="btn btn-blue" onclick="loadAnalytics(true)">🔄 רענן</button>
+        </div>
+        <div id="anHighlights" style="display:grid;grid-template-columns:1fr;gap:10px"></div>
+      </div>
+      <div class="chart-card" style="margin-top:14px">
+        <div class="card-header"><div class="card-title">📊 פירוט לפי מנייה</div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>מנייה</th><th>שם</th><th>מחיר</th><th>יום</th><th>שבוע</th><th>חודש</th><th>RSI</th><th>MA20</th></tr></thead>
+            <tbody id="anTable"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -726,6 +756,7 @@ function showPage(pageId, btn) {
   if (pageId === 'settings') loadHealth();
   if (pageId === 'plans') loadPlans();
   if (pageId === 'admin') loadAdmin();
+  if (pageId === 'analytics') loadAnalytics();
 }
 
 function updateClock() {
@@ -1279,6 +1310,92 @@ function upgradeRequest(planName) {
   const subject = encodeURIComponent(`בקשת שדרוג ל-${planName}`);
   const body = encodeURIComponent(`היי,\nאני רוצה לשדרג את החשבון שלי ל-${planName}.\nהמייל שלי: ${getUser()?.email || ''}`);
   window.location.href = `mailto:admin@tradingpro.app?subject=${subject}&body=${body}`;
+}
+
+// ============= ANALYTICS =============
+async function loadAnalytics(force) {
+  const gate = document.getElementById('analyticsAuthGate');
+  const content = document.getElementById('analyticsContent');
+  if (!isLoggedIn()) {
+    gate.style.display = ''; content.style.display = 'none'; return;
+  }
+  gate.style.display = 'none'; content.style.display = '';
+
+  // טעינה - הצג spinner
+  document.getElementById('anStats').innerHTML = '<div class="stat-card blue" style="grid-column:1/-1;text-align:center"><div class="stat-icon">⏳</div><div class="stat-label">טוען נתוני שוק...</div></div>';
+
+  const data = await api('/api/me/analytics');
+  if (!data) { toast('שגיאה בטעינת הנתונים'); return; }
+
+  if (data.total_symbols === 0) {
+    document.getElementById('anStats').innerHTML = '<div class="stat-card" style="grid-column:1/-1;text-align:center;padding:30px"><div class="stat-icon">📭</div><div class="stat-label">ה-Watchlist ריק. הוסף מניות כדי לראות ניתוח.</div></div>';
+    document.getElementById('anHighlights').innerHTML = '';
+    document.getElementById('anTable').innerHTML = '';
+    return;
+  }
+
+  // Stats cards
+  const cards = [
+    {icon:'📊', value: data.total_symbols, label: 'מניות', color:'blue', sub:'במעקב'},
+    {icon:'📅', value: fmtPct(data.avg_day_change_pct), label: 'ממוצע יומי', color: pctColor(data.avg_day_change_pct), sub:'24 שעות'},
+    {icon:'📆', value: fmtPct(data.avg_week_change_pct), label: 'ממוצע שבועי', color: pctColor(data.avg_week_change_pct), sub:'5 ימי מסחר'},
+    {icon:'🗓', value: fmtPct(data.avg_month_change_pct), label: 'ממוצע חודשי', color: pctColor(data.avg_month_change_pct), sub:'21 ימי מסחר'},
+  ];
+  document.getElementById('anStats').innerHTML = cards.map(c => `
+    <div class="stat-card ${c.color}">
+      <div class="stat-icon">${c.icon}</div>
+      <div class="stat-number">${c.value}</div>
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-change">${c.sub}</div>
+    </div>`).join('');
+
+  // Best / worst
+  const hl = [];
+  if (data.best_day) {
+    hl.push(`<div class="signal-card" style="border-right:3px solid var(--green)" onclick="openStock('${data.best_day.symbol}')">
+      <div style="display:flex;justify-content:space-between"><div><b style="color:var(--green)">🏆 הטוב ביותר היום</b><br><span class="signal-symbol clickable-sym">${data.best_day.symbol}</span> ${escapeHtml(data.best_day.name||'')}</div>
+      <div style="text-align:left"><div class="wl-price pos">${fmtPct(data.best_day.day_change_pct)}</div><div style="color:var(--muted);font-size:11px">$${data.best_day.price}</div></div></div>
+    </div>`);
+  }
+  if (data.worst_day && data.worst_day.symbol !== data.best_day?.symbol) {
+    hl.push(`<div class="signal-card" style="border-right:3px solid var(--red)" onclick="openStock('${data.worst_day.symbol}')">
+      <div style="display:flex;justify-content:space-between"><div><b style="color:var(--red)">⚠️ החלש ביותר היום</b><br><span class="signal-symbol clickable-sym">${data.worst_day.symbol}</span> ${escapeHtml(data.worst_day.name||'')}</div>
+      <div style="text-align:left"><div class="wl-price neg">${fmtPct(data.worst_day.day_change_pct)}</div><div style="color:var(--muted);font-size:11px">$${data.worst_day.price}</div></div></div>
+    </div>`);
+  }
+  document.getElementById('anHighlights').innerHTML = hl.join('') || '<div style="text-align:center;color:var(--muted);padding:20px">אין נתונים</div>';
+
+  // Table
+  const sorted = [...data.items].sort((a,b) => (b.day_change_pct ?? -999) - (a.day_change_pct ?? -999));
+  document.getElementById('anTable').innerHTML = sorted.map(it => {
+    if (it.error) return `<tr><td><span class="sym clickable-sym" onclick="openStock('${it.symbol}')">${it.symbol}</span></td><td colspan="7" style="color:var(--red);font-size:11px">${escapeHtml(it.error)}</td></tr>`;
+    const ma = it.above_ma20 === null ? '—' : (it.above_ma20 ? '<span style="color:var(--green)">▲</span>' : '<span style="color:var(--red)">▼</span>');
+    const rsiCls = it.rsi == null ? '' : (it.rsi > 70 ? 'neg' : (it.rsi < 30 ? 'pos' : ''));
+    return `<tr>
+      <td><span class="sym clickable-sym" onclick="openStock('${it.symbol}')">${it.symbol}</span></td>
+      <td style="font-size:11px;color:var(--muted)">${escapeHtml((it.name||'').slice(0,28))}</td>
+      <td>$${(it.price||0).toFixed(2)}</td>
+      <td class="${pctClass(it.day_change_pct)}">${fmtPct(it.day_change_pct)}</td>
+      <td class="${pctClass(it.week_change_pct)}">${fmtPct(it.week_change_pct)}</td>
+      <td class="${pctClass(it.month_change_pct)}">${fmtPct(it.month_change_pct)}</td>
+      <td class="${rsiCls}">${it.rsi != null ? it.rsi.toFixed(1) : '—'}</td>
+      <td>${ma}</td>
+    </tr>`;
+  }).join('');
+}
+
+function fmtPct(v) {
+  if (v == null) return '—';
+  const sign = v >= 0 ? '+' : '';
+  return sign + v.toFixed(2) + '%';
+}
+function pctColor(v) {
+  if (v == null) return 'blue';
+  return v >= 0 ? 'green' : 'red';
+}
+function pctClass(v) {
+  if (v == null) return '';
+  return v >= 0 ? 'pos' : 'neg';
 }
 
 // ============= ADMIN =============

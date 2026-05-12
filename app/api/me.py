@@ -167,6 +167,129 @@ def all_plans():
     ]
 
 
+class WatchlistPerfItem(BaseModel):
+    symbol: str
+    name: Optional[str] = None
+    price: Optional[float] = None
+    day_change_pct: Optional[float] = None
+    week_change_pct: Optional[float] = None
+    month_change_pct: Optional[float] = None
+    rsi: Optional[float] = None
+    above_ma20: Optional[bool] = None
+    error: Optional[str] = None
+
+
+class AnalyticsOut(BaseModel):
+    total_symbols: int
+    avg_day_change_pct: Optional[float] = None
+    avg_week_change_pct: Optional[float] = None
+    avg_month_change_pct: Optional[float] = None
+    best_day: Optional[WatchlistPerfItem] = None
+    worst_day: Optional[WatchlistPerfItem] = None
+    items: list[WatchlistPerfItem]
+
+
+def _compute_perf(symbol: str) -> WatchlistPerfItem:
+    """מחשב ביצועים לסמל בודד ע"י yfinance."""
+    try:
+        import yfinance as yf
+        import pandas as pd
+
+        t = yf.Ticker(symbol)
+        hist = t.history(period="3mo")
+        if hist is None or hist.empty:
+            return WatchlistPerfItem(symbol=symbol, error="no data")
+
+        close = hist["Close"]
+        last = float(close.iloc[-1])
+        # day change
+        day_chg = None
+        if len(close) >= 2:
+            prev = float(close.iloc[-2])
+            if prev > 0:
+                day_chg = ((last - prev) / prev) * 100
+        # week change (5 trading days back)
+        week_chg = None
+        if len(close) >= 6:
+            ago = float(close.iloc[-6])
+            if ago > 0:
+                week_chg = ((last - ago) / ago) * 100
+        # month change (~21 trading days)
+        month_chg = None
+        if len(close) >= 22:
+            ago = float(close.iloc[-22])
+            if ago > 0:
+                month_chg = ((last - ago) / ago) * 100
+        # RSI 14
+        rsi_val = None
+        try:
+            delta = close.diff()
+            gain = delta.where(delta > 0, 0).rolling(14).mean()
+            loss = -delta.where(delta < 0, 0).rolling(14).mean()
+            rs = gain / loss.replace(0, pd.NA)
+            rsi_series = 100 - (100 / (1 + rs))
+            rsi_val = float(rsi_series.iloc[-1]) if pd.notna(rsi_series.iloc[-1]) else None
+        except Exception:
+            pass
+        # MA20
+        above_ma = None
+        if len(close) >= 20:
+            ma20 = close.rolling(20).mean().iloc[-1]
+            if pd.notna(ma20):
+                above_ma = bool(last > float(ma20))
+        # name
+        name = None
+        try:
+            info = t.fast_info
+            name = info.get("longName") or info.get("shortName")
+        except Exception:
+            pass
+
+        return WatchlistPerfItem(
+            symbol=symbol,
+            name=name,
+            price=round(last, 2),
+            day_change_pct=round(day_chg, 2) if day_chg is not None else None,
+            week_change_pct=round(week_chg, 2) if week_chg is not None else None,
+            month_change_pct=round(month_chg, 2) if month_chg is not None else None,
+            rsi=round(rsi_val, 1) if rsi_val is not None else None,
+            above_ma20=above_ma,
+        )
+    except Exception as e:
+        return WatchlistPerfItem(symbol=symbol, error=str(e)[:100])
+
+
+@router.get("/analytics", response_model=AnalyticsOut)
+def watchlist_analytics(user: User = Depends(current_user)):
+    """ביצועים אגרגטיביים של ה-Watchlist."""
+    with get_session() as session:
+        symbols = [
+            r.symbol for r in session.exec(
+                select(UserWatchlist).where(UserWatchlist.user_id == user.id)
+            )
+        ]
+
+    items = [_compute_perf(s) for s in symbols]
+    valid = [i for i in items if i.error is None and i.day_change_pct is not None]
+
+    def avg(field: str) -> Optional[float]:
+        vals = [getattr(i, field) for i in valid if getattr(i, field) is not None]
+        return round(sum(vals) / len(vals), 2) if vals else None
+
+    best = max(valid, key=lambda i: i.day_change_pct, default=None) if valid else None
+    worst = min(valid, key=lambda i: i.day_change_pct, default=None) if valid else None
+
+    return AnalyticsOut(
+        total_symbols=len(items),
+        avg_day_change_pct=avg("day_change_pct"),
+        avg_week_change_pct=avg("week_change_pct"),
+        avg_month_change_pct=avg("month_change_pct"),
+        best_day=best,
+        worst_day=worst,
+        items=items,
+    )
+
+
 @router.post("/watchlist/sync")
 def sync_watchlist(data: WatchlistBulkIn, user: User = Depends(current_user)):
     """איחוד עם רשימה קיימת - מוסיף סמלים שעדיין לא בשרת. שימושי לסנכרון מ-localStorage."""

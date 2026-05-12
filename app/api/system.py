@@ -78,3 +78,12 @@ def trigger_market_scan(background: BackgroundTasks, max_symbols: int | None = N
 
     background.add_task(run_market_scan, max_symbols=max_symbols)
     return JobResult(ok=True, detail={"queued": "market_scan", "max_symbols": max_symbols})
+
+
+@router.post("/monitor/run", response_model=JobResult, dependencies=[Depends(require_pro_or_admin_key)])
+def trigger_monitor(background: BackgroundTasks):
+    """בודק את כל הסיגנלים הפתוחים וסוגר כשרלוונטי."""
+    from app.scanners.market.monitor import check_open_signals
+
+    background.add_task(check_open_signals)
+    return JobResult(ok=True, detail={"queued": "monitor"})
