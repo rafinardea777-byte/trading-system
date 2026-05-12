@@ -56,6 +56,7 @@ def init_db() -> None:
     if _is_sqlite:
         with _engine.begin() as conn:
             _add_column_if_missing(conn, "notification", "user_id", "INTEGER")
+            _add_column_if_missing(conn, "newsitem", "mentioned_symbols", "TEXT")
 
 
 def _add_column_if_missing(conn, table: str, column: str, col_def: str) -> None:

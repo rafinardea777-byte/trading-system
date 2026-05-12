@@ -3,9 +3,16 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.scanners.news.filter import filter_us_market
 from app.scanners.news.rss import fetch_rss
+from app.scanners.news.symbols import extract_symbols
 from app.scanners.news.twitter import fetch_tweets
 from app.storage import NewsItem, get_session
-from app.storage.repository import add_news_item, create_scan, finish_scan
+from app.storage.repository import (
+    add_news_item,
+    add_notification,
+    create_scan,
+    find_users_watching,
+    finish_scan,
+)
 
 log = get_logger(__name__)
 
@@ -39,7 +46,10 @@ def run_news_scan(
                 items = translate_items(items[:60])
 
             saved = 0
+            watchlist_alerts = 0
             for raw in items:
+                # חילוץ סמלי מניות מהכותרת
+                syms = extract_symbols(raw.get("text", ""))
                 ni = NewsItem(
                     scan_id=scan_id,
                     source=raw["source"],
@@ -50,13 +60,32 @@ def run_news_scan(
                     external_id=raw.get("external_id"),
                     hebrew_translation=raw.get("hebrew_translation"),
                     hebrew_explanation=raw.get("hebrew_explanation"),
+                    mentioned_symbols=",".join(sorted(syms)) if syms else None,
                 )
-                if add_news_item(session, ni) is not None:
-                    saved += 1
+                added = add_news_item(session, ni)
+                if added is None:
+                    continue  # כבר קיים
+                saved += 1
+
+                # התראה למשתמשים עם המניות האלה ב-Watchlist
+                if syms:
+                    matches = find_users_watching(session, syms)
+                    for user_id, matched_syms in matches.items():
+                        for sym in matched_syms:
+                            add_notification(
+                                session,
+                                kind="news",
+                                title=f"📰 {sym}: חדשות חדשות",
+                                message=raw["text"][:200],
+                                symbol=sym,
+                                icon="📰",
+                                user_id=user_id,
+                            )
+                            watchlist_alerts += 1
 
             finish_scan(session, scan, items_found=saved, status="success")
-            log.info("news_scan_done", fetched=len(items), saved=saved)
-            return {"scan_id": scan_id, "fetched": len(items), "saved": saved}
+            log.info("news_scan_done", fetched=len(items), saved=saved, watchlist_alerts=watchlist_alerts)
+            return {"scan_id": scan_id, "fetched": len(items), "saved": saved, "watchlist_alerts": watchlist_alerts}
 
         except Exception as e:
             finish_scan(session, scan, items_found=0, status="failed", error=str(e))

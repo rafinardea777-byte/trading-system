@@ -193,6 +193,24 @@ tr:hover td{background:#0a1020}
 .clickable-sym{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:rgba(0,212,255,0.3);transition:color .2s}
 .clickable-sym:hover{color:#fff;text-decoration-color:var(--blue)}
 
+/* WATCHED NEWS */
+.news-card.watched-news{border-right:3px solid var(--gold);background:linear-gradient(90deg,rgba(255,215,0,0.06),var(--card) 60%);position:relative;animation:wlPulse 0.6s ease-out}
+@keyframes wlPulse{0%{box-shadow:0 0 0 0 rgba(255,215,0,0.4)}100%{box-shadow:0 0 0 8px rgba(255,215,0,0)}}
+.news-symbols{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.wl-symbol-badge,.sym-badge{font-size:11px;font-weight:bold;padding:3px 8px;border-radius:6px;cursor:pointer;direction:ltr;transition:all .15s}
+.wl-symbol-badge{background:linear-gradient(135deg,#b8860b,#8b6914);color:#fff;border:1px solid #ffd700}
+.wl-symbol-badge:hover{background:linear-gradient(135deg,#daa520,#b8860b)}
+.sym-badge{background:#1a2744;color:var(--blue);border:1px solid var(--border)}
+.sym-badge:hover{border-color:var(--blue)}
+
+/* WATCHLIST NEWS POPUP */
+.wl-popup{position:fixed;top:80px;left:20px;background:var(--card);border:2px solid var(--gold);border-radius:12px;padding:14px 16px;box-shadow:0 10px 40px rgba(0,0,0,.6);z-index:500;max-width:380px;animation:slideIn .3s ease-out;cursor:pointer}
+@keyframes slideIn{0%{transform:translateX(-120%)}100%{transform:translateX(0)}}
+.wl-popup-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--gold);font-weight:bold}
+.wl-popup-title{font-size:13px;line-height:1.4;margin-bottom:8px}
+.wl-popup-meta{font-size:10px;color:var(--muted);display:flex;justify-content:space-between}
+.wl-popup .x{position:absolute;top:6px;left:8px;color:var(--muted);background:none;border:none;cursor:pointer;font-size:14px}
+
 /* AUTH UI */
 .user-chip{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:11px;display:flex;gap:6px;align-items:center;cursor:pointer}
 .user-chip:hover{border-color:var(--blue)}
@@ -349,6 +367,10 @@ body{padding-bottom:70px}
       <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-number" id="statWinRate">--</div><div class="stat-label">אחוז הצלחה</div></div>
       <div class="stat-card gold"><div class="stat-icon">💰</div><div class="stat-number" id="statMonthlyPnl">--</div><div class="stat-label">רווח חודשי</div></div>
       <div class="stat-card red"><div class="stat-icon">📂</div><div class="stat-number" id="statOpenPos">--</div><div class="stat-label">עסקאות פתוחות</div></div>
+    </div>
+    <div class="chart-card" id="watchedNewsCard" style="display:none">
+      <div class="card-header"><div class="card-title" style="color:var(--gold)">⭐ חדשות על Watchlist שלך</div><div class="card-badge" id="watchedNewsCount" style="background:linear-gradient(135deg,#b8860b,#8b6914);color:#fff">0</div></div>
+      <div id="dashWatchedNews"><div class="news-empty" style="text-align:center;padding:14px;color:var(--muted);font-size:12px">אין עדיין חדשות על המניות שלך - חזור כשיש סריקה חדשה</div></div>
     </div>
     <div class="chart-card">
       <div class="card-header"><div class="card-title">🔥 סיגנלים פתוחים</div><div class="card-badge" id="openCount">0</div></div>
@@ -792,6 +814,18 @@ function renderNews(n) {
   const time = n.published_at ? new Date(n.published_at).toLocaleString('he-IL') : '';
   const author = n.source === 'twitter' ? `@${n.author}` : n.author;
   const srcClass = n.source === 'twitter' ? 'source-twitter' : 'source-rss';
+  // הדגשה אם המנייה ב-watchlist
+  const mentioned = (n.mentioned_symbols || '').split(',').filter(Boolean);
+  const wlList = wlGet();
+  const matchedWl = mentioned.filter(s => wlList.includes(s));
+  const isWatched = matchedWl.length > 0;
+  const wlBadges = matchedWl.map(s =>
+    `<span class="wl-symbol-badge" onclick="event.stopPropagation();openStock('${s}')">⭐ ${s}</span>`
+  ).join('');
+  const allBadges = mentioned.filter(s => !matchedWl.includes(s)).map(s =>
+    `<span class="sym-badge" onclick="event.stopPropagation();openStock('${s}')">${s}</span>`
+  ).join('');
+  const cardClass = isWatched ? 'news-card watched-news' : 'news-card';
 
   // עברית: קודם תרגום מלא (OpenAI), אחרת רמז ממילון מקומי
   let hebrewBlock = '';
@@ -808,11 +842,12 @@ function renderNews(n) {
     ? `<div class="news-explanation">💡 ${escapeHtml(n.hebrew_explanation)}</div>` : '';
 
   return `
-    <div class="news-card">
+    <div class="${cardClass}">
       <div class="news-meta">
         <div class="news-author ${srcClass}">${author}</div>
         <div>${time}</div>
       </div>
+      ${(wlBadges || allBadges) ? `<div class="news-symbols">${wlBadges}${allBadges}</div>` : ''}
       <div class="news-bilingual">
         <div class="news-side eng">
           <span class="news-lang">🇺🇸 EN</span>
@@ -847,6 +882,7 @@ async function loadSignals() {
 
 async function loadDashboard() {
   loadStats();
+  await wlLoad(true);  // ודא ש-wlGet() יחזיר מצב מעודכן ל-renderNews
   const sigs = await api('/api/signals?limit=4&status=open') || [];
   document.getElementById('openCount').textContent = sigs.length;
   document.getElementById('dashSignals').innerHTML = sigs.length ? sigs.map(renderSignal).join('') : renderEmpty('🔍', 'אין סיגנלים פתוחים', 'הרץ סריקת שוק');
@@ -854,6 +890,90 @@ async function loadDashboard() {
   const news = await api('/api/news?limit=5&hours_back=24') || [];
   document.getElementById('newsCount').textContent = news.length;
   document.getElementById('dashNews').innerHTML = news.length ? news.map(renderNews).join('') : renderEmpty('📭', 'אין חדשות', 'הרץ סריקת חדשות');
+
+  // חדשות על Watchlist - מקטע מוצג רק אם המשתמש מחובר עם פריטים
+  await loadWatchedNews();
+}
+
+async function loadWatchedNews() {
+  const card = document.getElementById('watchedNewsCard');
+  if (!isLoggedIn() || wlGet().length === 0) {
+    if (card) card.style.display = 'none';
+    return;
+  }
+  const news = await api('/api/news?watchlist_only=true&limit=10&hours_back=72') || [];
+  card.style.display = '';
+  document.getElementById('watchedNewsCount').textContent = news.length;
+  if (news.length) {
+    document.getElementById('dashWatchedNews').innerHTML = news.map(renderNews).join('');
+  } else {
+    document.getElementById('dashWatchedNews').innerHTML = '<div class="news-empty" style="text-align:center;padding:14px;color:var(--muted);font-size:12px">אין עדיין חדשות על המניות שלך - חזור כשיש סריקה חדשה</div>';
+  }
+}
+
+// === REAL-TIME WATCHLIST NEWS POLLING ===
+let _lastWatchedNewsId = parseInt(localStorage.getItem('lastWatchedNewsId') || '0');
+
+async function pollWatchlistNews() {
+  if (!isLoggedIn() || wlGet().length === 0) return;
+  const params = new URLSearchParams({
+    watchlist_only: 'true',
+    limit: '5',
+    hours_back: '24',
+  });
+  if (_lastWatchedNewsId > 0) params.set('since_id', String(_lastWatchedNewsId));
+  const news = await api('/api/news?' + params.toString());
+  if (!news || !news.length) return;
+
+  // ראשון = החדש ביותר
+  const newest = news[0];
+  if (newest.id <= _lastWatchedNewsId) return;
+
+  // אם זאת לא הטעינה הראשונה - הצג popup + browser notification
+  const isFirstLoad = _lastWatchedNewsId === 0;
+  _lastWatchedNewsId = newest.id;
+  localStorage.setItem('lastWatchedNewsId', String(_lastWatchedNewsId));
+
+  if (!isFirstLoad) {
+    news.slice(0, 3).forEach(n => showWatchlistPopup(n));
+    // אם יש הרשאת browser - הודעה native
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const sym = (n => (n.mentioned_symbols || '').split(',')[0])(newest);
+      try {
+        const notif = new Notification(`📰 ${sym}: חדשות חדשות`, {
+          body: newest.text.slice(0, 200),
+          icon: '/static/icon.svg',
+          tag: 'wl-news-' + newest.id,
+        });
+        notif.onclick = () => { window.focus(); openStock(sym); notif.close(); };
+      } catch (e) {}
+    }
+  }
+
+  // רענון הדשבורד אם פתוח
+  const active = document.querySelector('.page.active')?.id;
+  if (active === 'page-dashboard') loadWatchedNews();
+  if (active === 'page-news') loadNews();
+}
+
+function showWatchlistPopup(n) {
+  const sym = (n.mentioned_symbols || '').split(',').filter(s => wlGet().includes(s))[0] || '?';
+  const popup = document.createElement('div');
+  popup.className = 'wl-popup';
+  popup.innerHTML = `
+    <button class="x" onclick="this.parentElement.remove()">✕</button>
+    <div class="wl-popup-header">📰 חדשות על ${sym}</div>
+    <div class="wl-popup-title">${escapeHtml(n.text.slice(0, 150))}</div>
+    <div class="wl-popup-meta"><span>${escapeHtml(n.author)}</span><span>${new Date(n.fetched_at).toLocaleTimeString('he-IL')}</span></div>
+  `;
+  popup.onclick = (e) => {
+    if (e.target.tagName === 'BUTTON') return;
+    if (n.url) window.open(n.url, '_blank');
+    popup.remove();
+  };
+  document.body.appendChild(popup);
+  // הסרה אוטומטית אחרי 12 שניות
+  setTimeout(() => popup.remove(), 12000);
 }
 
 async function loadNews() {
@@ -1526,8 +1646,10 @@ loadDashboard();
 loadHealth();
 ensureBrowserNotifyPermission();
 pollNotifications();
+pollWatchlistNews();          // טעינה ראשונית - לא מציג popup, רק שומר last id
 setInterval(loadDashboard, 60000);
 setInterval(pollNotifications, 30000);
+setInterval(pollWatchlistNews, 20000);  // real-time alerts כל 20 שניות
 </script>
 </body>
 </html>

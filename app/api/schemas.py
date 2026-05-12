@@ -30,6 +30,7 @@ class NewsOut(BaseModel):
     fetched_at: datetime
     hebrew_translation: Optional[str] = None
     hebrew_explanation: Optional[str] = None
+    mentioned_symbols: Optional[str] = None  # CSV של סמלים
 
 
 class ScanOut(BaseModel):

@@ -63,10 +63,13 @@ class NewsItem(SQLModel, table=True):
     text: str
     url: str = ""
     published_at: Optional[datetime] = Field(default=None, index=True)
-    fetched_at: datetime = Field(default_factory=datetime.utcnow)
+    fetched_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
     hebrew_translation: Optional[str] = None
     hebrew_explanation: Optional[str] = None
+
+    # סמלי מניות שמוזכרים בכותרת - CSV: "AAPL,NVDA,TSLA"
+    mentioned_symbols: Optional[str] = Field(default=None, index=True)
 
     # למניעת כפילויות
     external_id: Optional[str] = Field(default=None, unique=True, index=True)

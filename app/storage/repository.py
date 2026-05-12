@@ -77,6 +77,21 @@ def add_news_item(session: Session, item: NewsItem) -> Optional[NewsItem]:
     return item
 
 
+def find_users_watching(session: Session, symbols: set[str]) -> dict[int, set[str]]:
+    """מחזיר {user_id: {symbols}} לכל המשתמשים שיש להם לפחות אחת מהמניות ב-watchlist."""
+    if not symbols:
+        return {}
+    from app.storage.models import UserWatchlist
+
+    rows = list(session.exec(
+        select(UserWatchlist).where(UserWatchlist.symbol.in_(symbols))
+    ))
+    out: dict[int, set[str]] = {}
+    for r in rows:
+        out.setdefault(r.user_id, set()).add(r.symbol)
+    return out
+
+
 def get_news(
     session: Session,
     hours_back: int = 24,
@@ -106,10 +121,12 @@ def add_notification(
     symbol: Optional[str] = None,
     signal_id: Optional[int] = None,
     icon: str = "🔔",
+    user_id: Optional[int] = None,
 ) -> Notification:
     n = Notification(
         kind=kind, title=title, message=message,
         symbol=symbol, signal_id=signal_id, icon=icon,
+        user_id=user_id,
     )
     session.add(n)
     return n
