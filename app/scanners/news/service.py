@@ -2,7 +2,9 @@
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.scanners.news.filter import filter_us_market
+from app.scanners.news.reddit import fetch_reddit
 from app.scanners.news.rss import fetch_rss
+from app.scanners.news.stocktwits import fetch_stocktwits
 from app.scanners.news.symbols import extract_symbols
 from app.scanners.news.twitter import fetch_tweets
 from app.storage import NewsItem, get_session
@@ -33,17 +35,40 @@ def run_news_scan(
         scan_id = scan.id
 
         try:
+            items: list[dict] = []
+
+            # RSS - תמיד פעיל
+            try:
+                items.extend(fetch_rss(hours_back=hours_back))
+            except Exception as e:
+                log.warning("rss_failed", error=str(e))
+
+            # X / Twitter - רק אם יש מפתח
             if settings.use_x_api:
-                items = fetch_tweets(hours_back=hours_back)
-                items = filter_us_market(items)  # X לא מסונן מהמקור
-            else:
-                items = fetch_rss(hours_back=hours_back)
-                # RSS כבר מסונן בפנים
+                try:
+                    tweets = fetch_tweets(hours_back=hours_back)
+                    items.extend(filter_us_market(tweets))
+                except Exception as e:
+                    log.warning("twitter_failed", error=str(e))
+
+            # StockTwits - חינמי
+            try:
+                items.extend(fetch_stocktwits(hours_back=hours_back))
+            except Exception as e:
+                log.warning("stocktwits_failed", error=str(e))
+
+            # Reddit (WSB + stocks) - חינמי
+            try:
+                items.extend(fetch_reddit(hours_back=hours_back))
+            except Exception as e:
+                log.warning("reddit_failed", error=str(e))
+
+            log.info("news_sources_aggregated", total=len(items))
 
             if enrich and items:
                 # translate_items נופל אלגנטית למילון מקומי אם אין OpenAI
                 from app.enrichment.translator import translate_items
-                items = translate_items(items[:60])
+                items = translate_items(items[:80])
 
             saved = 0
             watchlist_alerts = 0
