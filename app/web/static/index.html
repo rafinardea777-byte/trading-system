@@ -288,7 +288,9 @@ body{padding-bottom:70px}
   <button class="nav-item" onclick="showPage('news',this)">📰 חדשות שוק</button>
   <button class="nav-item" onclick="showPage('journal',this)">📋 יומן עסקאות</button>
   <button class="nav-item" onclick="showPage('scans',this)">🛰️ ריצות סורק</button>
+  <button class="nav-item" onclick="showPage('plans',this)">💎 שדרוג מנוי</button>
   <button class="nav-item" onclick="showPage('settings',this)">⚙️ הגדרות</button>
+  <button class="nav-item admin-only" onclick="showPage('admin',this)" style="display:none">👨‍💼 ניהול</button>
   <div class="bot-status" id="botStatus">
     <div style="display:flex;align-items:center;margin-bottom:6px">
       <span class="dot"></span>
@@ -485,6 +487,31 @@ body{padding-bottom:70px}
       </div>
     </div>
   </div>
+
+  <!-- PLANS / UPGRADE -->
+  <div class="page" id="page-plans">
+    <div class="page-title">💎 <span>שדרוג מנוי</span></div>
+    <div id="plansGrid" style="display:grid;grid-template-columns:1fr;gap:14px"></div>
+    <p style="margin-top:20px;color:var(--muted);font-size:12px;text-align:center;line-height:1.7">
+      תשלום יתאפשר בקרוב באמצעות כרטיס אשראי / ביט.<br>
+      בשלב הזה, צור קשר: <a href="mailto:admin@tradingpro.app" style="color:var(--blue)">admin@tradingpro.app</a>
+    </p>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="page" id="page-admin">
+    <div class="page-title">👨‍💼 <span>ניהול</span></div>
+    <div class="stats-grid" id="adminStats"></div>
+    <div class="table-card" style="margin-top:14px">
+      <div class="card-header"><div class="card-title">משתמשים</div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>מייל</th><th>שם</th><th>תוכנית</th><th>פעיל</th><th>נרשם</th><th>נכנס</th><th>WL</th><th>פעולות</th></tr></thead>
+          <tbody id="adminUsersBody"><tr><td colspan="9" style="text-align:center;color:var(--muted)">טוען...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- AUTH MODAL -->
@@ -547,6 +574,9 @@ function renderAuthChip() {
   } else {
     slot.innerHTML = '<button class="btn btn-blue" onclick="openLogin()" id="loginBtn">🔓 התחבר</button>';
   }
+  // הצג/הסתר ניהול לפי is_admin
+  const isAdm = u && u.is_admin;
+  document.querySelectorAll('.admin-only').forEach(el => { el.style.display = isAdm ? '' : 'none'; });
 }
 
 function openLogin() {
@@ -672,6 +702,8 @@ function showPage(pageId, btn) {
   if (pageId === 'journal') loadJournal();
   if (pageId === 'scans') loadScans();
   if (pageId === 'settings') loadHealth();
+  if (pageId === 'plans') loadPlans();
+  if (pageId === 'admin') loadAdmin();
 }
 
 function updateClock() {
@@ -1088,6 +1120,125 @@ async function openStock(symbol) {
 
   // Finviz snapshot
   document.getElementById('finvizImg').src = data.finviz_chart_url + `&_=${Date.now()}`;
+}
+
+// ============= PLANS =============
+async function loadPlans() {
+  const grid = document.getElementById('plansGrid');
+  const plans = await api('/api/me/plans/all') || [];
+  let myPlan = null;
+  if (isLoggedIn()) myPlan = await api('/api/me/plan');
+
+  const planColors = {free:'#4a5568', pro:'#00d4ff', vip:'#ffd700'};
+  grid.innerHTML = plans.map(p => {
+    const isCurrent = myPlan && myPlan.name === p.name;
+    const c = planColors[p.name] || '#4a5568';
+    const price = p.monthly_price_ils === 0 ? 'חינם' : `₪${p.monthly_price_ils}/חודש`;
+    const wl = p.watchlist_max === 0 ? 'ללא הגבלה' : p.watchlist_max;
+    return `<div class="signal-card" style="border-right:3px solid ${c};${isCurrent?'box-shadow:0 0 0 2px '+c+' inset;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:20px;font-weight:bold;color:${c}">${p.display_name}</div>
+        ${isCurrent ? '<span class="plan-badge" style="background:'+c+';color:#080c14">המנוי שלך</span>' : ''}
+      </div>
+      <div style="font-size:28px;font-weight:bold;margin-bottom:14px">${price}</div>
+      <ul style="list-style:none;padding:0;font-size:13px;line-height:2;color:var(--text)">
+        <li>✓ Watchlist: ${wl} מניות</li>
+        <li>${p.can_manual_scan?'✓':'✗'} סריקה ידנית</li>
+        <li>${p.can_custom_strategy?'✓':'✗'} אסטרטגיות מותאמות</li>
+        <li>${p.can_export?'✓':'✗'} ייצוא לאקסל</li>
+        <li>✓ היסטוריית התראות: ${p.notifications_history_days} יום</li>
+      </ul>
+      ${isCurrent ? '' : `<button class="btn btn-blue" style="width:100%;margin-top:14px" onclick="upgradeRequest('${p.name}')">${p.monthly_price_ils === 0 ? 'בחר תוכנית' : 'שדרג עכשיו'}</button>`}
+    </div>`;
+  }).join('');
+}
+
+function upgradeRequest(planName) {
+  if (!isLoggedIn()) { openLogin(); return; }
+  // כרגע - שליחת מייל. בעתיד - Stripe checkout
+  const subject = encodeURIComponent(`בקשת שדרוג ל-${planName}`);
+  const body = encodeURIComponent(`היי,\nאני רוצה לשדרג את החשבון שלי ל-${planName}.\nהמייל שלי: ${getUser()?.email || ''}`);
+  window.location.href = `mailto:admin@tradingpro.app?subject=${subject}&body=${body}`;
+}
+
+// ============= ADMIN =============
+async function loadAdmin() {
+  if (!getUser()?.is_admin) { toast('דף זה זמין למנהלים בלבד'); return; }
+  await Promise.all([loadAdminStats(), loadAdminUsers()]);
+}
+
+async function loadAdminStats() {
+  const s = await api('/api/admin/stats');
+  if (!s) return;
+  const cards = [
+    {icon:'👥', value:s.total_users, label:`משתמשים סה"כ`, color:'blue', sub:`${s.active_users} פעילים`},
+    {icon:'🆕', value:s.new_today, label:'נרשמו היום', color:'green', sub:`${s.new_week} השבוע`},
+    {icon:'💰', value:`₪${s.total_revenue_ils}`, label:'הכנסה חודשית', color:'gold', sub:`${s.pro_users + s.vip_users} משלמים`},
+    {icon:'💎', value:`${s.pro_users}/${s.vip_users}`, label:'Pro / VIP', color:'red', sub:`${s.free_users} חינם`},
+  ];
+  document.getElementById('adminStats').innerHTML = cards.map(c => `
+    <div class="stat-card ${c.color}">
+      <div class="stat-icon">${c.icon}</div>
+      <div class="stat-number">${c.value}</div>
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-change">${c.sub}</div>
+    </div>`).join('');
+}
+
+async function loadAdminUsers() {
+  const users = await api('/api/admin/users');
+  const tbody = document.getElementById('adminUsersBody');
+  if (!users || !users.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted)">אין משתמשים</td></tr>';
+    return;
+  }
+  tbody.innerHTML = users.map(u => {
+    const date = new Date(u.created_at).toLocaleDateString('he-IL');
+    const lastLogin = u.last_login_at ? new Date(u.last_login_at).toLocaleDateString('he-IL') : '—';
+    return `<tr>
+      <td>${u.id}</td>
+      <td style="direction:ltr;text-align:left;font-size:11px">${escapeHtml(u.email)}${u.is_admin?' 👑':''}</td>
+      <td>${escapeHtml(u.full_name || '—')}</td>
+      <td>
+        <select onchange="adminSetPlan(${u.id}, this.value)" style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px">
+          <option value="free" ${u.plan==='free'?'selected':''}>free</option>
+          <option value="pro" ${u.plan==='pro'?'selected':''}>pro</option>
+          <option value="vip" ${u.plan==='vip'?'selected':''}>vip</option>
+        </select>
+      </td>
+      <td><span class="${u.is_active?'badge-open':'badge-closed'}" style="cursor:pointer" onclick="adminToggleActive(${u.id}, ${!u.is_active})">${u.is_active?'פעיל':'מושבת'}</span></td>
+      <td style="font-size:11px">${date}</td>
+      <td style="font-size:11px">${lastLogin}</td>
+      <td>${u.watchlist_count}</td>
+      <td><button onclick="adminDelete(${u.id})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px" title="מחק">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function adminSetPlan(uid, plan) {
+  const r = await fetch(API + `/api/admin/users/${uid}`, {
+    method: 'PATCH',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify({plan}),
+  });
+  if (r.ok) { toast(`התוכנית עודכנה ל-${plan}`); loadAdmin(); }
+  else toast('עדכון נכשל');
+}
+
+async function adminToggleActive(uid, newState) {
+  const r = await fetch(API + `/api/admin/users/${uid}`, {
+    method: 'PATCH',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify({is_active: newState}),
+  });
+  if (r.ok) { toast(newState?'הופעל':'הושבת'); loadAdmin(); }
+}
+
+async function adminDelete(uid) {
+  if (!confirm('למחוק את המשתמש לצמיתות?')) return;
+  const r = await fetch(API + `/api/admin/users/${uid}`, {method:'DELETE', headers: authHeader()});
+  if (r.ok) { toast('נמחק'); loadAdmin(); }
+  else { const e = await r.json(); toast(e.detail || 'מחיקה נכשלה'); }
 }
 
 // ============= NOTIFICATIONS =============

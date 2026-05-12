@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import select
 
 from app.auth.deps import current_user
+from app.auth.plans import limits_for, PLANS
 from app.storage import User, UserWatchlist, get_session
 
 router = APIRouter(prefix="/api/me", tags=["me"])
@@ -47,6 +48,8 @@ def add_watchlist(data: WatchlistAddIn, user: User = Depends(current_user)):
     sym = _norm(data.symbol)
     if not sym.isalpha():
         raise HTTPException(status_code=400, detail="סמל לא תקין")
+    plan = limits_for(user)
+
     with get_session() as session:
         existing = session.exec(
             select(UserWatchlist).where(
@@ -56,6 +59,18 @@ def add_watchlist(data: WatchlistAddIn, user: User = Depends(current_user)):
         ).first()
         if existing:
             return WatchlistItemOut(symbol=existing.symbol, note=existing.note, added_at=existing.added_at)
+
+        # אכיפת מגבלת תוכנית
+        if plan.watchlist_max > 0 and not user.is_admin:
+            current_count = len(list(session.exec(
+                select(UserWatchlist).where(UserWatchlist.user_id == user.id)
+            )))
+            if current_count >= plan.watchlist_max:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail=f"הגעת למגבלת {plan.watchlist_max} מניות בתוכנית {plan.display_name}. שדרג ל-Pro להוספה נוספת.",
+                )
+
         item = UserWatchlist(user_id=user.id, symbol=sym, note=data.note)
         session.add(item)
         session.flush()
@@ -76,6 +91,56 @@ def remove_watchlist(symbol: str, user: User = Depends(current_user)):
             raise HTTPException(status_code=404, detail="לא ב-watchlist")
         session.delete(existing)
     return {"ok": True}
+
+
+class PlanInfoOut(BaseModel):
+    name: str
+    display_name: str
+    watchlist_max: int
+    watchlist_used: int
+    can_manual_scan: bool
+    can_custom_strategy: bool
+    can_export: bool
+    notifications_history_days: int
+    monthly_price_ils: int
+
+
+@router.get("/plan", response_model=PlanInfoOut)
+def my_plan(user: User = Depends(current_user)):
+    plan = limits_for(user)
+    with get_session() as session:
+        used = len(list(session.exec(
+            select(UserWatchlist).where(UserWatchlist.user_id == user.id)
+        )))
+    return PlanInfoOut(
+        name=plan.name,
+        display_name=plan.display_name,
+        watchlist_max=plan.watchlist_max,
+        watchlist_used=used,
+        can_manual_scan=plan.can_manual_scan,
+        can_custom_strategy=plan.can_custom_strategy,
+        can_export=plan.can_export,
+        notifications_history_days=plan.notifications_history_days,
+        monthly_price_ils=plan.monthly_price_ils,
+    )
+
+
+@router.get("/plans/all")
+def all_plans():
+    """רשימת התוכניות הזמינות - לדף שדרוג."""
+    return [
+        {
+            "name": p.name,
+            "display_name": p.display_name,
+            "watchlist_max": p.watchlist_max,
+            "can_manual_scan": p.can_manual_scan,
+            "can_custom_strategy": p.can_custom_strategy,
+            "can_export": p.can_export,
+            "notifications_history_days": p.notifications_history_days,
+            "monthly_price_ils": p.monthly_price_ils,
+        }
+        for p in PLANS.values()
+    ]
 
 
 @router.post("/watchlist/sync")
