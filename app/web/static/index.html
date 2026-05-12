@@ -193,6 +193,42 @@ tr:hover td{background:#0a1020}
 .clickable-sym{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:rgba(0,212,255,0.3);transition:color .2s}
 .clickable-sym:hover{color:#fff;text-decoration-color:var(--blue)}
 
+/* DIGEST CARDS */
+.digest-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;position:relative;transition:border-color .15s}
+.digest-card:hover{border-color:var(--blue)}
+.digest-card.wl{border-right:3px solid var(--gold);background:linear-gradient(90deg,rgba(255,215,0,0.06),var(--card) 50%)}
+.digest-card.bullish{box-shadow:inset 4px 0 0 0 var(--green)}
+.digest-card.bearish{box-shadow:inset 4px 0 0 0 var(--red)}
+.digest-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
+.digest-sym{font-size:20px;font-weight:bold;color:var(--blue);cursor:pointer;direction:ltr}
+.digest-sym:hover{color:#fff}
+.digest-sym .heb{font-size:11px;color:var(--gold);margin-right:6px;font-weight:normal}
+.digest-meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:11px}
+.digest-sent{padding:2px 8px;border-radius:6px;font-weight:bold;font-size:10px}
+.digest-sent.bullish{background:#0a1f0a;color:var(--green);border:1px solid #1a7f37}
+.digest-sent.bearish{background:#2d0a0a;color:var(--red);border:1px solid #7f1a1a}
+.digest-sent.mixed{background:#1a1a2e;color:var(--gold);border:1px solid #8b6914}
+.digest-sent.neutral{background:#080c14;color:var(--muted);border:1px solid var(--border)}
+.digest-time{color:var(--muted);font-size:10px}
+.digest-headline{font-size:13px;line-height:1.5;margin-bottom:8px;color:var(--text)}
+.digest-heb{font-size:12px;line-height:1.5;color:#bcc7d6;background:#080c14;border-right:3px solid var(--blue);padding:8px 10px;border-radius:0 6px 6px 0;margin-bottom:8px}
+.digest-footer{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);flex-wrap:wrap;gap:6px}
+.digest-sources{display:flex;gap:4px}
+.digest-src{font-size:10px;padding:2px 7px;border-radius:5px;background:#1a2744;color:var(--blue)}
+.digest-src.reddit{background:#3a1a1a;color:#ff6b6b}
+.digest-src.stocktwits{background:#1a2e1a;color:var(--green)}
+.digest-src.rss{background:#1a1a2e;color:var(--muted)}
+.digest-src.twitter{background:#0a2545;color:#1d9bf0}
+.digest-expand{background:none;border:none;color:var(--blue);cursor:pointer;font-size:11px;padding:4px 8px;border-radius:6px}
+.digest-expand:hover{background:#1a2744}
+.digest-extras{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:none}
+.digest-extras.show{display:block}
+.digest-extra-item{padding:8px 0;border-bottom:1px dashed var(--border);font-size:11px;color:var(--muted)}
+.digest-extra-item:last-child{border-bottom:none}
+.digest-extra-item .auth{color:var(--blue);font-weight:bold;margin-left:6px}
+.digest-extra-item a{color:var(--blue);text-decoration:none}
+.digest-extra-item a:hover{text-decoration:underline}
+
 /* WATCHED NEWS */
 .news-card.watched-news{border-right:3px solid var(--gold);background:linear-gradient(90deg,rgba(255,215,0,0.06),var(--card) 60%);position:relative;animation:wlPulse 0.6s ease-out}
 @keyframes wlPulse{0%{box-shadow:0 0 0 0 rgba(255,215,0,0.4)}100%{box-shadow:0 0 0 8px rgba(255,215,0,0)}}
@@ -405,6 +441,14 @@ body{padding-bottom:70px}
   <!-- NEWS -->
   <div class="page" id="page-news">
     <div class="page-title">📰 חדשות <span>השוק</span></div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+      <div class="tf-tabs" style="display:flex;background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <button class="tf-btn news-mode active" data-mode="digest" onclick="setNewsMode('digest')">📊 Digest</button>
+        <button class="tf-btn news-mode" data-mode="flat" onclick="setNewsMode('flat')">📜 הכל</button>
+      </div>
+      <div style="flex:1"></div>
+      <div style="font-size:11px;color:var(--muted)" id="newsModeHint">⭐ Watchlist בראש · מקובץ לפי מנייה · הכי חשוב קודם</div>
+    </div>
     <div id="newsList"></div>
   </div>
 
@@ -1007,9 +1051,108 @@ function showWatchlistPopup(n) {
   setTimeout(() => popup.remove(), 12000);
 }
 
+let _newsMode = localStorage.getItem('newsMode') || 'digest';
+
+function setNewsMode(mode) {
+  _newsMode = mode;
+  localStorage.setItem('newsMode', mode);
+  document.querySelectorAll('.news-mode').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  const hint = document.getElementById('newsModeHint');
+  if (mode === 'digest') {
+    hint.textContent = '⭐ Watchlist בראש · מקובץ לפי מנייה · הכי חשוב קודם';
+  } else {
+    hint.textContent = 'תצוגה שטוחה - כל הכותרות לפי סדר זמן';
+  }
+  loadNews();
+}
+
 async function loadNews() {
-  const news = await api('/api/news?limit=100&hours_back=24') || [];
-  document.getElementById('newsList').innerHTML = news.length ? news.map(renderNews).join('') : renderEmpty('📭', 'אין חדשות', 'הרץ סריקת חדשות');
+  // ודא שכפתורי המצב נכונים בטעינה ראשונה
+  document.querySelectorAll('.news-mode').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === _newsMode);
+  });
+
+  if (_newsMode === 'digest') {
+    const groups = await api('/api/news/digest?limit=30&hours_back=24') || [];
+    if (!groups.length) {
+      document.getElementById('newsList').innerHTML = renderEmpty('📭', 'אין חדשות', 'הרץ סריקת חדשות');
+      return;
+    }
+    document.getElementById('newsList').innerHTML = groups.map(renderDigestGroup).join('');
+  } else {
+    const news = await api('/api/news?limit=100&hours_back=24') || [];
+    document.getElementById('newsList').innerHTML = news.length ? news.map(renderNews).join('') : renderEmpty('📭', 'אין חדשות', 'הרץ סריקת חדשות');
+  }
+}
+
+function renderDigestGroup(g) {
+  const symLabel = g.symbol || '🌐 כללי';
+  const wlClass = g.is_watchlist ? ' wl' : '';
+  const sentClass = (g.sentiment === 'bullish' || g.sentiment === 'bearish') ? ` ${g.sentiment}` : '';
+  const sentLabel = {
+    bullish: '📈 חיובי', bearish: '📉 שלילי', mixed: '⚖️ מעורב', neutral: '◽ ניטרלי',
+  }[g.sentiment] || '◽';
+  const time = new Date(g.latest_at).toLocaleString('he-IL');
+  const topText = (g.top_item.text || '').replace(/\[👍 \d+ \| 💬 \d+\] /, '').slice(0, 220);
+  const topHebrew = g.top_item.hebrew_translation || '';
+  const hint = (!topHebrew && g.top_item.hebrew_explanation) ? g.top_item.hebrew_explanation : '';
+  const sources = g.sources.map(s =>
+    `<span class="digest-src ${s}">${({rss:'📺 RSS', stocktwits:'💬 StockTwits', reddit:'🔴 Reddit', twitter:'🐦 X'})[s] || s}</span>`
+  ).join('');
+  const extraToggle = g.headline_count > 1 ?
+    `<button class="digest-expand" onclick="toggleDigestExtras(this, ${g.top_item.id})">+ ${g.headline_count - 1} כותרות נוספות</button>` : '';
+
+  // עוד פריטים (נסתרים בהתחלה)
+  const extras = g.items.filter(i => i.id !== g.top_item.id).map(i => {
+    const ttime = new Date(i.fetched_at).toLocaleString('he-IL');
+    const ttext = (i.text || '').replace(/\[👍 \d+ \| 💬 \d+\] /, '').slice(0, 180);
+    return `<div class="digest-extra-item">
+      <span class="auth">${escapeHtml(i.author)}</span>
+      ${escapeHtml(ttext)}
+      ${i.url ? ` · <a href="${escapeAttr(i.url)}" target="_blank" rel="noopener">קישור</a>` : ''}
+      <span style="float:left;color:var(--muted)">${ttime}</span>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="digest-card${wlClass}${sentClass}">
+    <div class="digest-header">
+      <div>
+        <div class="digest-sym" onclick="${g.symbol ? `openStock('${g.symbol}')` : ''}">
+          ${g.is_watchlist ? '⭐ ' : ''}${symLabel}
+        </div>
+      </div>
+      <div class="digest-meta">
+        <span class="digest-sent ${g.sentiment}">${sentLabel}</span>
+        <span class="digest-time">${time}</span>
+      </div>
+    </div>
+    <div class="digest-headline">${escapeHtml(topText)}</div>
+    ${topHebrew ? `<div class="digest-heb">🇮🇱 ${escapeHtml(topHebrew)}</div>` : (hint ? `<div class="digest-heb" style="border-right-color:var(--muted)">💡 ${escapeHtml(hint)}</div>` : '')}
+    <div class="digest-footer">
+      <div class="digest-sources">${sources}</div>
+      <div>
+        ${g.top_item.url ? `<a href="${escapeAttr(g.top_item.url)}" target="_blank" rel="noopener" style="color:var(--blue)">📎 מקור</a>` : ''}
+        ${extraToggle}
+      </div>
+    </div>
+    ${extras ? `<div class="digest-extras">${extras}</div>` : ''}
+  </div>`;
+}
+
+function toggleDigestExtras(btn, topId) {
+  const card = btn.closest('.digest-card');
+  const extras = card.querySelector('.digest-extras');
+  if (!extras) return;
+  const showing = extras.classList.toggle('show');
+  btn.textContent = showing ? '− הסתר' : btn.textContent.replace('− הסתר', '+ עוד');
+  if (!showing && !btn.textContent.includes('+')) {
+    // restore original count text
+    const count = extras.querySelectorAll('.digest-extra-item').length;
+    btn.textContent = `+ ${count} כותרות נוספות`;
+  }
 }
 
 async function loadJournal() {
