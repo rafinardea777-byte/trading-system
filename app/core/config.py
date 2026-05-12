@@ -39,6 +39,25 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_hours: int = 24 * 30  # token חי 30 יום
     allow_signup: bool = True        # אפשר לכבות פתיחת חשבונות זמנית
+    require_email_verification: bool = False  # אם True - חייב לאמת מייל לפני שימוש מלא
+
+    # --- Email (Resend / SMTP / no-op) ---
+    resend_api_key: str = ""         # Resend free tier: 100 emails/day. https://resend.com
+    email_from: str = "noreply@tradingpro.app"
+    email_from_name: str = "TradingPro"
+    public_base_url: str = "https://rafinardea777-byte.github.io/trading-system"
+
+    # --- Stripe (billing) ---
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_id_pro: str = ""
+    stripe_price_id_vip: str = ""
+
+    # --- App branding ---
+    app_name: str = "TradingPro"
+    company_name: str = "TradingPro"
+    contact_email: str = "admin@tradingpro.app"
 
     # --- Scheduling ---
     enable_scheduler: bool = True

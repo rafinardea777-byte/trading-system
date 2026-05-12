@@ -343,6 +343,7 @@ body{padding-bottom:70px}
   <button class="nav-item" onclick="showPage('journal',this)">📋 יומן עסקאות</button>
   <button class="nav-item" onclick="showPage('scans',this)">🛰️ ריצות סורק</button>
   <button class="nav-item" onclick="showPage('analytics',this)">📈 Analytics</button>
+  <button class="nav-item logged-in-only" onclick="showPage('account',this)" style="display:none">👤 החשבון שלי</button>
   <button class="nav-item" onclick="showPage('plans',this)">💎 שדרוג מנוי</button>
   <button class="nav-item" onclick="showPage('settings',this)">⚙️ הגדרות</button>
   <button class="nav-item admin-only" onclick="showPage('admin',this)" style="display:none">👨‍💼 ניהול</button>
@@ -555,6 +556,49 @@ body{padding-bottom:70px}
     </div>
   </div>
 
+  <!-- ACCOUNT -->
+  <div class="page" id="page-account">
+    <div class="page-title">👤 <span>החשבון שלי</span></div>
+    <div id="accountAuthGate" style="text-align:center;padding:40px;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:14px">🔐</div>
+      <div>נדרשת התחברות לצפייה בפרטי החשבון</div>
+      <button class="btn btn-blue" style="margin-top:14px" onclick="openLogin()">התחבר</button>
+    </div>
+    <div id="accountContent" style="display:none">
+      <div class="settings-card">
+        <h3>👤 פרטי החשבון</h3>
+        <div class="setting-row"><div class="setting-label">מייל</div><div class="setting-value" id="acEmail" style="direction:ltr">--</div></div>
+        <div class="setting-row">
+          <div class="setting-label">שם מלא</div>
+          <div class="setting-value">
+            <input id="acName" style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-size:13px;width:160px">
+            <button class="btn btn-blue" style="padding:4px 10px;font-size:11px;margin-right:4px" onclick="acSaveName()">שמור</button>
+          </div>
+        </div>
+        <div class="setting-row"><div class="setting-label">תוכנית</div><div class="setting-value" id="acPlan">--</div></div>
+        <div class="setting-row"><div class="setting-label">מייל מאומת</div><div class="setting-value" id="acVerified">--</div></div>
+        <div class="setting-row"><div class="setting-label">תאריך הרשמה</div><div class="setting-value" id="acJoined">--</div></div>
+      </div>
+
+      <div class="settings-card">
+        <h3>🔑 שינוי סיסמה</h3>
+        <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:8px">
+          <input id="acCurrentPwd" type="password" placeholder="סיסמה נוכחית"
+                 style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px">
+          <input id="acNewPwd" type="password" placeholder="סיסמה חדשה (8 תווים לפחות)" minlength="8"
+                 style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px">
+          <button class="btn btn-blue" onclick="acChangePassword()">עדכן סיסמה</button>
+        </div>
+      </div>
+
+      <div class="settings-card" style="border:1px solid #7f1a1a">
+        <h3 style="color:var(--red)">⚠️ מחיקת חשבון</h3>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px">פעולה זו תמחק לצמיתות את החשבון, ה-Watchlist וההתראות. לא ניתן לבטל.</p>
+        <button class="btn" style="background:#5a1212;color:#fff" onclick="acDeleteAccount()">🗑 מחק חשבון לצמיתות</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ANALYTICS - WATCHLIST PERFORMANCE -->
   <div class="page" id="page-analytics">
     <div class="page-title">📈 <span>Analytics Watchlist</span></div>
@@ -639,8 +683,24 @@ body{padding-bottom:70px}
       <span id="switchPrompt">אין לך חשבון?</span>
       <a id="switchLink" onclick="toggleAuthMode()">הירשם בחינם</a>
     </div>
+    <div class="switch" style="margin-top:8px;font-size:11px">
+      <a onclick="closeLogin();forgotPassword()" id="forgotLink">שכחת סיסמה?</a>
+    </div>
+    <div class="switch" id="termsRow" style="margin-top:12px;font-size:10px;color:var(--muted);display:none">
+      בהרשמה אתה מסכים ל-<a href="/legal/terms" target="_blank">תקנון השימוש</a>
+      ול-<a href="/legal/privacy" target="_blank">מדיניות הפרטיות</a>
+    </div>
   </div>
 </div>
+
+<footer style="text-align:center;padding:30px 20px 90px;border-top:1px solid var(--border);margin-top:30px;font-size:11px;color:var(--muted);line-height:1.8">
+  <div style="margin-bottom:10px">
+    <a href="/legal/terms" target="_blank" style="color:var(--blue);text-decoration:none;margin:0 10px">תקנון שימוש</a> ·
+    <a href="/legal/privacy" target="_blank" style="color:var(--blue);text-decoration:none;margin:0 10px">מדיניות פרטיות</a> ·
+    <a href="mailto:admin@tradingpro.app" style="color:var(--blue);text-decoration:none;margin:0 10px">צור קשר</a>
+  </div>
+  <div>© TradingPro · אין במידע משום ייעוץ השקעות · השקעה כרוכה בסיכון</div>
+</footer>
 
 <div class="toast" id="toast"></div>
 
@@ -670,16 +730,17 @@ function renderAuthChip() {
   const u = _currentUser || getUser();
   if (u) {
     const planClass = `plan-${u.plan || 'free'}`;
-    slot.innerHTML = `<div class="user-chip" onclick="logout()" title="לחץ להתנתקות">
+    slot.innerHTML = `<div class="user-chip" onclick="showPage('account', null)" title="החשבון שלי">
       <span class="uname">${escapeHtml(u.email)}</span>
       <span class="plan-badge ${planClass}">${u.plan || 'free'}</span>
     </div>`;
   } else {
     slot.innerHTML = '<button class="btn btn-blue" onclick="openLogin()" id="loginBtn">🔓 התחבר</button>';
   }
-  // הצג/הסתר ניהול לפי is_admin
+  // הצג/הסתר אזורים תלויי-משתמש
   const isAdm = u && u.is_admin;
   document.querySelectorAll('.admin-only').forEach(el => { el.style.display = isAdm ? '' : 'none'; });
+  document.querySelectorAll('.logged-in-only').forEach(el => { el.style.display = u ? '' : 'none'; });
 }
 
 function openLogin() {
@@ -709,6 +770,8 @@ function setAuthMode() {
   document.getElementById('switchPrompt').textContent    = isSignup ? 'יש לך כבר חשבון?' : 'אין לך חשבון?';
   document.getElementById('switchLink').textContent      = isSignup ? 'התחבר' : 'הירשם בחינם';
   document.getElementById('authPassword').autocomplete   = isSignup ? 'new-password' : 'current-password';
+  document.getElementById('forgotLink').style.display    = isSignup ? 'none' : '';
+  document.getElementById('termsRow').style.display      = isSignup ? '' : 'none';
   document.getElementById('authError').classList.remove('show');
 }
 
@@ -808,6 +871,7 @@ function showPage(pageId, btn) {
   if (pageId === 'plans') loadPlans();
   if (pageId === 'admin') loadAdmin();
   if (pageId === 'analytics') loadAnalytics();
+  if (pageId === 'account') loadAccount();
 }
 
 function updateClock() {
@@ -1465,6 +1529,127 @@ function upgradeRequest(planName) {
   window.location.href = `mailto:admin@tradingpro.app?subject=${subject}&body=${body}`;
 }
 
+// ============= ACCOUNT =============
+async function loadAccount() {
+  const gate = document.getElementById('accountAuthGate');
+  const content = document.getElementById('accountContent');
+  if (!isLoggedIn()) {
+    if (gate) gate.style.display = '';
+    if (content) content.style.display = 'none';
+    return;
+  }
+  if (gate) gate.style.display = 'none';
+  if (content) content.style.display = '';
+
+  const u = await api('/api/auth/me');
+  if (!u) return;
+  document.getElementById('acEmail').textContent = u.email;
+  document.getElementById('acName').value = u.full_name || '';
+  document.getElementById('acPlan').textContent = (u.plan || 'free').toUpperCase();
+  document.getElementById('acVerified').textContent = u.email_verified
+    ? '✅ מאומת'
+    : '⚠️ לא אומת — נשלח לך מייל בעת ההרשמה';
+  document.getElementById('acJoined').textContent = new Date(u.created_at).toLocaleDateString('he-IL');
+}
+
+async function acSaveName() {
+  const name = document.getElementById('acName').value.trim();
+  const r = await fetch(API + '/api/auth/me', {
+    method: 'PATCH',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify({full_name: name}),
+  });
+  if (r.ok) {
+    toast('השם עודכן');
+    const u = await api('/api/auth/me');
+    if (u) { setUser(u); }
+  } else {
+    toast('שגיאה בעדכון');
+  }
+}
+
+async function acChangePassword() {
+  const current = document.getElementById('acCurrentPwd').value;
+  const next = document.getElementById('acNewPwd').value;
+  if (next.length < 8) { toast('סיסמה חדשה - 8 תווים לפחות'); return; }
+  const r = await fetch(API + '/api/auth/change-password', {
+    method: 'POST',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify({current_password: current, new_password: next}),
+  });
+  if (r.ok) {
+    toast('הסיסמה עודכנה');
+    document.getElementById('acCurrentPwd').value = '';
+    document.getElementById('acNewPwd').value = '';
+  } else {
+    const e = await r.json();
+    toast(e.detail || 'עדכון נכשל');
+  }
+}
+
+async function acDeleteAccount() {
+  if (!confirm('האם אתה בטוח? פעולה זו לא ניתנת לביטול. תאשר שוב למחיקה.')) return;
+  if (!confirm('אישור אחרון - למחוק לצמיתות את החשבון, ה-Watchlist וההתראות?')) return;
+  const r = await fetch(API + '/api/auth/me', {method: 'DELETE', headers: authHeader()});
+  if (r.ok) {
+    toast('החשבון נמחק');
+    setToken(null); setUser(null);
+    window.location.hash = '';
+    showPage('dashboard', null);
+  } else {
+    toast('מחיקה נכשלה');
+  }
+}
+
+// =========== FORGOT PASSWORD + RESET (via URL hash) =============
+async function forgotPassword() {
+  const email = prompt('הזן כתובת מייל לקבלת קישור איפוס:');
+  if (!email) return;
+  const r = await fetch(API + '/api/auth/forgot-password', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({email: email.trim().toLowerCase()}),
+  });
+  if (r.ok) {
+    toast('אם הכתובת רשומה - יישלח אליה מייל');
+  } else {
+    toast('שגיאה. נסה שוב.');
+  }
+}
+
+// פענוח hash בטעינה - תמיכה ב-reset-password ו-verify-email
+async function handleAuthHash() {
+  const hash = window.location.hash || '';
+  if (hash.startsWith('#reset-password=')) {
+    const token = hash.slice('#reset-password='.length);
+    const newPwd = prompt('הזן סיסמה חדשה (8 תווים לפחות):');
+    if (!newPwd || newPwd.length < 8) { toast('סיסמה לא תקינה'); return; }
+    const r = await fetch(API + '/api/auth/reset-password', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({token, new_password: newPwd}),
+    });
+    if (r.ok) {
+      toast('הסיסמה אופסה - אפשר להתחבר');
+      window.location.hash = '';
+      openLogin();
+    } else {
+      const e = await r.json();
+      toast(e.detail || 'איפוס נכשל');
+    }
+  } else if (hash.startsWith('#verify-email=')) {
+    const token = hash.slice('#verify-email='.length);
+    const r = await fetch(API + '/api/auth/verify-email?token=' + encodeURIComponent(token), {method: 'POST'});
+    if (r.ok) {
+      toast('✅ המייל אומת בהצלחה');
+      window.location.hash = '';
+      if (isLoggedIn()) validateSession();
+    } else {
+      const e = await r.json();
+      toast(e.detail || 'אימות נכשל');
+    }
+  }
+}
+
 // ============= ANALYTICS =============
 async function loadAnalytics(force) {
   const gate = document.getElementById('analyticsAuthGate');
@@ -1920,6 +2105,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // אתחול
+handleAuthHash();             // אם יש hash עם reset/verify token - לטפל
 validateSession();           // קודם כל לאמת token אם יש
 loadDashboard();
 loadHealth();

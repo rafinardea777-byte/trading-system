@@ -18,6 +18,23 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     last_login_at: Optional[datetime] = None
 
+    # Email verification
+    email_verified: bool = Field(default=False)
+    email_verify_token: Optional[str] = Field(default=None, index=True)
+    email_verify_expires: Optional[datetime] = None
+
+    # Password reset
+    reset_token: Optional[str] = Field(default=None, index=True)
+    reset_token_expires: Optional[datetime] = None
+
+    # Billing (Stripe)
+    stripe_customer_id: Optional[str] = Field(default=None, index=True)
+    stripe_subscription_id: Optional[str] = Field(default=None)
+    subscription_status: Optional[str] = Field(default=None)  # active | canceled | past_due
+
+    # Compliance
+    accepted_terms_at: Optional[datetime] = None
+
 
 class Scan(SQLModel, table=True):
     """ריצה של סורק (news או market)."""

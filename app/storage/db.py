@@ -57,6 +57,16 @@ def init_db() -> None:
         with _engine.begin() as conn:
             _add_column_if_missing(conn, "notification", "user_id", "INTEGER")
             _add_column_if_missing(conn, "newsitem", "mentioned_symbols", "TEXT")
+            # User additions
+            _add_column_if_missing(conn, "user", "email_verified", "BOOLEAN DEFAULT 0")
+            _add_column_if_missing(conn, "user", "email_verify_token", "TEXT")
+            _add_column_if_missing(conn, "user", "email_verify_expires", "TEXT")
+            _add_column_if_missing(conn, "user", "reset_token", "TEXT")
+            _add_column_if_missing(conn, "user", "reset_token_expires", "TEXT")
+            _add_column_if_missing(conn, "user", "stripe_customer_id", "TEXT")
+            _add_column_if_missing(conn, "user", "stripe_subscription_id", "TEXT")
+            _add_column_if_missing(conn, "user", "subscription_status", "TEXT")
+            _add_column_if_missing(conn, "user", "accepted_terms_at", "TEXT")
 
 
 def _add_column_if_missing(conn, table: str, column: str, col_def: str) -> None:

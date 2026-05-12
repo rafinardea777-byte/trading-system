@@ -11,8 +11,10 @@ from slowapi.middleware import SlowAPIMiddleware
 from starlette.responses import JSONResponse
 
 from app.api import admin as admin_router
-from app.api import me as me_router
+from app.api import billing as billing_router
 from app.api import digest as digest_router
+from app.api import legal as legal_router
+from app.api import me as me_router
 from app.api import news as news_router
 from app.api import notifications as notifications_router
 from app.auth.router import router as auth_router
@@ -88,6 +90,8 @@ app.include_router(digest_router.router)
 app.include_router(stats_router.router)
 app.include_router(stocks_router.router)
 app.include_router(notifications_router.router)
+app.include_router(billing_router.router)
+app.include_router(legal_router.router)
 app.include_router(system_router.router)
 
 
