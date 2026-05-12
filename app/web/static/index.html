@@ -1343,19 +1343,30 @@ function getAdminKey() {
 }
 
 async function runScan(kind) {
-  // ב-public_mode השרת ידרוש X-Admin-Key. בלוקאלי הוא לא יבדוק - אז שולחים תמיד אם יש.
-  const headers = {'Content-Type': 'application/json'};
+  // הרשאה: JWT של משתמש מחובר Pro+/admin מספיק. אחרת ננסה Admin Key.
+  const headers = Object.assign({'Content-Type': 'application/json'}, authHeader());
   const stored = localStorage.getItem('adminKey');
   if (stored) headers['X-Admin-Key'] = stored;
 
   toast(`מפעיל סריקת ${kind === 'news' ? 'חדשות' : 'שוק'}...`);
   const r = await fetch(API + `/api/system/scan/${kind}`, {method: 'POST', headers});
 
-  if (r.status === 401) {
+  if (r.status === 401 || r.status === 402) {
+    if (isLoggedIn()) {
+      // מחובר אבל אין הרשאה - כנראה FREE plan
+      const data = await r.json().catch(() => ({}));
+      toast(data.detail || '❌ סריקה ידנית זמינה ל-Pro+. שדרג מנוי');
+      return;
+    }
+    // לא מחובר - הצע התחברות או Admin Key
+    if (confirm('להפעלת סריקה צריך להתחבר. ללחוץ OK להתחברות, או Cancel להזין Admin Key?')) {
+      openLogin();
+      return;
+    }
     localStorage.removeItem('adminKey');
     const k = getAdminKey();
-    if (!k) { toast('❌ צריך Admin Key'); return; }
-    return runScan(kind);  // נסה שוב
+    if (!k) { toast('❌ בוטל'); return; }
+    return runScan(kind);
   }
   if (r.status === 429) { toast('❌ יותר מדי בקשות - חכה דקה'); return; }
   if (!r.ok) { toast('❌ נכשל - בדוק logs'); return; }
