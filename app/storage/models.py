@@ -73,9 +73,10 @@ class NewsItem(SQLModel, table=True):
 
 
 class Notification(SQLModel, table=True):
-    """התראה למשתמש - סיגנל חדש, חדשות חמות, וכו'."""
+    """התראה - אם user_id=None היא גלובלית (לכל המשתמשים)."""
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     kind: str = Field(index=True)  # signal | news | system
     title: str
     message: str
@@ -84,6 +85,16 @@ class Notification(SQLModel, table=True):
     icon: str = "🔔"
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     read_at: Optional[datetime] = None
+
+
+class UserWatchlist(SQLModel, table=True):
+    """רשימת מעקב למשתמש - מנייה אחת לשורה. unique על (user_id, symbol)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    symbol: str = Field(index=True)
+    note: Optional[str] = None
+    added_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
 class TradeJournal(SQLModel, table=True):

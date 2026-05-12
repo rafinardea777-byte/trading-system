@@ -10,6 +10,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.responses import JSONResponse
 
+from app.api import me as me_router
 from app.api import news as news_router
 from app.api import notifications as notifications_router
 from app.auth.router import router as auth_router
@@ -77,6 +78,7 @@ app.add_middleware(
 
 # ראוטרים
 app.include_router(auth_router)
+app.include_router(me_router.router)
 app.include_router(signals_router.router)
 app.include_router(news_router.router)
 app.include_router(stats_router.router)

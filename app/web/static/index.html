@@ -611,8 +611,15 @@ async function submitAuth() {
     setUser(data.user);
     closeLogin();
     toast((_authMode === 'signup') ? `ברוך הבא, ${data.user.email}` : `שלום, ${data.user.email}`);
+    // סנכרון Watchlist מ-localStorage לשרת + רענון cache
+    if (typeof wlSyncOnLogin === 'function') {
+      await wlSyncOnLogin();
+      _wlCache = null;
+      await wlLoad(true);
+    }
     // טען מחדש מידע שתלוי במשתמש
     if (typeof pollNotifications === 'function') pollNotifications();
+    if (typeof loadDashboard === 'function') loadDashboard();
   } catch (e) {
     errEl.textContent = 'תקלת רשת: ' + (e.message || e);
     errEl.classList.add('show');
@@ -626,7 +633,10 @@ function logout() {
   if (!confirm('להתנתק מהחשבון?')) return;
   setToken(null);
   setUser(null);
+  _wlCache = null;          // ננקה cache של watchlist - יטען localStorage
   toast('התנתקת');
+  loadDashboard();
+  pollNotifications();
 }
 
 // אימות אוטומטי של ה-token בטעינה
@@ -1188,37 +1198,93 @@ async function pollNotifications() {
 }
 
 // ============= WATCHLIST =============
+// אם מחובר - נשמר בשרת. אחרת ב-localStorage.
 const WL_KEY = 'watchlist';
-function wlGet() {
+let _wlCache = null;  // cache בזמן ריצה
+
+function wlLocalGet() {
   try { return JSON.parse(localStorage.getItem(WL_KEY) || '[]'); } catch { return []; }
 }
-function wlSet(arr) { localStorage.setItem(WL_KEY, JSON.stringify(arr)); }
+function wlLocalSet(arr) { localStorage.setItem(WL_KEY, JSON.stringify(arr)); }
+
+async function wlLoad(force) {
+  if (_wlCache !== null && !force) return _wlCache;
+  if (isLoggedIn()) {
+    const rows = await api('/api/me/watchlist');
+    _wlCache = rows ? rows.map(r => r.symbol) : [];
+  } else {
+    _wlCache = wlLocalGet();
+  }
+  return _wlCache;
+}
+
+// סינכרוני - מהcache לרינדור מהיר. wlSync() מרענן את ה-cache אסינכרונית.
+function wlGet() { return _wlCache || wlLocalGet(); }
 function wlHas(sym) { return wlGet().includes(sym.toUpperCase()); }
-function wlToggle(sym) {
+
+async function wlToggle(sym) {
   sym = sym.toUpperCase();
   const list = wlGet();
   const i = list.indexOf(sym);
-  if (i >= 0) { list.splice(i, 1); toast(`${sym} הוסר מה-Watchlist`); }
-  else { list.push(sym); toast(`${sym} נוסף ל-Watchlist`); }
-  wlSet(list);
-  // רענון ה-render הנוכחי
+  const isRemoving = i >= 0;
+
+  if (isLoggedIn()) {
+    if (isRemoving) {
+      await fetch(API + `/api/me/watchlist/${sym}`, {method: 'DELETE', headers: authHeader()});
+    } else {
+      await fetch(API + '/api/me/watchlist', {
+        method: 'POST',
+        headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+        body: JSON.stringify({symbol: sym}),
+      });
+    }
+  } else {
+    if (isRemoving) list.splice(i, 1); else list.push(sym);
+    wlLocalSet(list);
+  }
+
+  // עדכון cache
+  _wlCache = isRemoving ? list.filter(s => s !== sym) : Array.from(new Set([...list, sym]));
+  toast(isRemoving ? `${sym} הוסר מה-Watchlist` : `${sym} נוסף ל-Watchlist`);
+
+  // רענון UI
   const active = document.querySelector('.page.active')?.id;
   if (active === 'page-signals') loadSignals();
   else if (active === 'page-dashboard') loadDashboard();
   else if (active === 'page-watchlist') loadWatchlist();
+  else if (active === 'page-journal') loadJournal();
 }
-function wlAdd() {
+
+async function wlAdd() {
   const input = document.getElementById('wlAddInput');
   const sym = (input.value || '').trim().toUpperCase();
   if (!/^[A-Z]{1,6}$/.test(sym)) { toast('סמל לא תקין'); return; }
   if (wlHas(sym)) { toast('כבר ב-Watchlist'); return; }
-  wlToggle(sym);
+  await wlToggle(sym);
   input.value = '';
 }
-function wlRefresh() { loadWatchlist(true); }
+
+function wlRefresh() { _wlCache = null; loadWatchlist(true); }
+
+// סנכרון localStorage → שרת בהתחברות
+async function wlSyncOnLogin() {
+  const local = wlLocalGet();
+  if (!local.length) return;
+  try {
+    const r = await fetch(API + '/api/me/watchlist/sync', {
+      method: 'POST',
+      headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+      body: JSON.stringify({symbols: local}),
+    });
+    const data = await r.json();
+    if (data.added > 0) toast(`${data.added} מניות סונכרנו לחשבון`);
+    // לאחר סנכרון - מנקה את ה-local כדי שלא תהיה כפילות עתידית
+    localStorage.removeItem(WL_KEY);
+  } catch (e) {}
+}
 
 async function loadWatchlist(force) {
-  const list = wlGet();
+  const list = await wlLoad(force);
   const grid = document.getElementById('watchlistGrid');
   if (!list.length) {
     grid.innerHTML = renderEmpty('⭐', 'ה-Watchlist ריק', 'הוסף סמל למעלה או לחץ על ☆ ליד כל מנייה');

@@ -46,11 +46,28 @@ if _is_sqlite:
 
 
 def init_db() -> None:
-    """יצירת כל הטבלאות (idempotent)."""
+    """יצירת כל הטבלאות (idempotent) + מיגרציות בסיסיות."""
     # ייבוא ביטול-עצלן כדי שכל המודלים יירשמו ב-metadata
     from app.storage import models  # noqa: F401
 
     SQLModel.metadata.create_all(_engine)
+
+    # SQLite migrations - הוספת עמודות חסרות בטבלאות קיימות
+    if _is_sqlite:
+        with _engine.begin() as conn:
+            _add_column_if_missing(conn, "notification", "user_id", "INTEGER")
+
+
+def _add_column_if_missing(conn, table: str, column: str, col_def: str) -> None:
+    """SQLite ALTER TABLE ADD COLUMN - idempotent."""
+    from sqlalchemy import text
+    try:
+        rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+        existing = {r[1] for r in rows}
+        if column not in existing:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"))
+    except Exception:
+        pass
 
 
 @contextmanager

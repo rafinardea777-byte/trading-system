@@ -115,15 +115,34 @@ def add_notification(
     return n
 
 
-def get_notifications(session: Session, limit: int = 50, unread_only: bool = False) -> list[Notification]:
+def get_notifications(
+    session: Session,
+    limit: int = 50,
+    unread_only: bool = False,
+    user_id: Optional[int] = None,
+) -> list[Notification]:
+    """אם user_id ניתן - מחזיר התראות של המשתמש + התראות גלובליות. אחרת רק גלובליות."""
     stmt = select(Notification).order_by(Notification.created_at.desc())
+    if user_id is not None:
+        stmt = stmt.where(
+            (Notification.user_id == user_id) | (Notification.user_id.is_(None))
+        )
+    else:
+        stmt = stmt.where(Notification.user_id.is_(None))
     if unread_only:
         stmt = stmt.where(Notification.read_at.is_(None))
     return list(session.exec(stmt.limit(limit)))
 
 
-def count_unread(session: Session) -> int:
-    return len(list(session.exec(select(Notification).where(Notification.read_at.is_(None)))))
+def count_unread(session: Session, user_id: Optional[int] = None) -> int:
+    stmt = select(Notification).where(Notification.read_at.is_(None))
+    if user_id is not None:
+        stmt = stmt.where(
+            (Notification.user_id == user_id) | (Notification.user_id.is_(None))
+        )
+    else:
+        stmt = stmt.where(Notification.user_id.is_(None))
+    return len(list(session.exec(stmt)))
 
 
 def mark_notification_read(session: Session, nid: int) -> None:
