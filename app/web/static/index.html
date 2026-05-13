@@ -230,6 +230,13 @@ tr:hover td{background:#0a1020}
 .clickable-sym{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:rgba(0,212,255,0.3);transition:color .2s}
 .clickable-sym:hover{color:#fff;text-decoration-color:var(--blue)}
 
+/* SUB-TABS */
+.sub-tabs{display:flex;gap:6px;margin-bottom:18px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:5px;flex-wrap:wrap}
+.sub-tab{flex:1;min-width:140px;background:transparent;border:none;color:var(--muted);padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;text-align:center}
+.sub-tab:hover{color:var(--text);background:rgba(0,212,255,0.05)}
+.sub-tab.active{background:linear-gradient(135deg,#0070cc,#0050a0);color:#fff;box-shadow:0 2px 8px rgba(0,112,204,0.3)}
+@media(max-width:600px){.sub-tab{font-size:11px;padding:8px 10px;min-width:0}}
+
 /* AI CHAT */
 .ai-msg{padding:8px 12px;margin-bottom:8px;border-radius:8px;line-height:1.5;font-size:12.5px}
 .ai-msg.user{background:#0d2545;border-right:3px solid var(--blue)}
@@ -421,8 +428,7 @@ body{padding-bottom:70px}
   <button class="nav-item" onclick="showPage('news',this)">📰 חדשות שוק</button>
   <button class="nav-item" onclick="showPage('journal',this)">📋 יומן עסקאות</button>
   <button class="nav-item" onclick="showPage('scans',this)">🛰️ ריצות סורק</button>
-  <button class="nav-item" onclick="showPage('analytics',this)">📈 Analytics</button>
-  <button class="nav-item" onclick="showPage('analysts',this)">🎯 אנליסטים</button>
+  <button class="nav-item" onclick="showPage('analytics',this)">📈 ניתוחים</button>
   <button class="nav-item logged-in-only" onclick="showPage('account',this)" style="display:none">👤 החשבון שלי</button>
   <button class="nav-item" onclick="showPage('plans',this)" style="color:var(--gold);font-weight:bold">💎 שדרוג מנוי</button>
   <button class="nav-item" onclick="showPage('settings',this)">⚙️ הגדרות</button>
@@ -457,7 +463,7 @@ body{padding-bottom:70px}
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
     <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('journal',null)" style="padding:14px 4px"><span class="icon">📋</span>יומן</button>
     <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('scans',null)" style="padding:14px 4px"><span class="icon">🛰️</span>סורקים</button>
-    <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('analytics',null)" style="padding:14px 4px"><span class="icon">📈</span>Analytics</button>
+    <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('analytics',null)" style="padding:14px 4px"><span class="icon">📈</span>ניתוחים</button>
     <button class="mobile-nav-item logged-in-only" onclick="toggleMoreMenu();showPage('account',null)" style="padding:14px 4px;display:none"><span class="icon">👤</span>החשבון</button>
     <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('settings',null)" style="padding:14px 4px"><span class="icon">⚙️</span>הגדרות</button>
     <button class="mobile-nav-item admin-only" onclick="toggleMoreMenu();showPage('admin',null)" style="padding:14px 4px;display:none"><span class="icon">👨‍💼</span>ניהול</button>
@@ -654,45 +660,55 @@ body{padding-bottom:70px}
     </div>
   </div>
 
-  <!-- ANALYSTS - WEEKLY RECOMMENDATIONS -->
-  <div class="page" id="page-analysts">
-    <div class="page-title">🎯 <span>המלצות אנליסטים השבוע</span></div>
-    <div style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-blue" onclick="loadAnalysts(7)">📅 7 ימים</button>
-      <button class="btn" style="background:#1a2744" onclick="loadAnalysts(14)">📅 14 ימים</button>
-      <button class="btn" style="background:#1a2744" onclick="loadAnalysts(30)">📅 30 ימים</button>
-      <div style="flex:1"></div>
-      <div style="font-size:11px;color:var(--muted)">מתבסס על yfinance · Watchlist שלך + 30 מניות פופולריות</div>
-    </div>
-    <div id="analystsList"></div>
-  </div>
-
-  <!-- ANALYTICS - WATCHLIST PERFORMANCE -->
+  <!-- ANALYTICS - UNIFIED (Performance + Analyst Recommendations) -->
   <div class="page" id="page-analytics">
-    <div class="page-title">📈 <span>Analytics Watchlist</span></div>
-    <div id="analyticsAuthGate" style="text-align:center;padding:40px;color:var(--muted)">
-      <div style="font-size:48px;margin-bottom:14px">🔐</div>
-      <div>נדרשת התחברות כדי לראות ביצועי Watchlist</div>
-      <button class="btn btn-blue" style="margin-top:14px" onclick="openLogin()">התחבר</button>
+    <div class="page-title">📈 <span>ניתוחים</span></div>
+
+    <!-- Sub-tabs -->
+    <div class="sub-tabs">
+      <button class="sub-tab active" data-tab="performance" onclick="setAnTab('performance')">📊 ביצועי Watchlist</button>
+      <button class="sub-tab" data-tab="analysts" onclick="setAnTab('analysts')">🎯 המלצות אנליסטים</button>
     </div>
-    <div id="analyticsContent" style="display:none">
-      <div class="stats-grid" id="anStats"></div>
-      <div class="chart-card" style="margin-top:14px">
-        <div class="card-header">
-          <div class="card-title">🏆 הבולטים השבוע</div>
-          <button class="btn btn-blue" onclick="loadAnalytics(true)">🔄 רענן</button>
-        </div>
-        <div id="anHighlights" style="display:grid;grid-template-columns:1fr;gap:10px"></div>
+
+    <!-- Tab 1: Performance -->
+    <div id="anTabPerformance">
+      <div id="analyticsAuthGate" style="text-align:center;padding:40px;color:var(--muted)">
+        <div style="font-size:48px;margin-bottom:14px">🔐</div>
+        <div>נדרשת התחברות כדי לראות ביצועי Watchlist</div>
+        <button class="btn btn-blue" style="margin-top:14px" onclick="openLogin()">התחבר</button>
       </div>
-      <div class="chart-card" style="margin-top:14px">
-        <div class="card-header"><div class="card-title">📊 פירוט לפי מנייה</div></div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>מנייה</th><th>שם</th><th>מחיר</th><th>יום</th><th>שבוע</th><th>חודש</th><th>RSI</th><th>MA20</th></tr></thead>
-            <tbody id="anTable"></tbody>
-          </table>
+      <div id="analyticsContent" style="display:none">
+        <div class="stats-grid" id="anStats"></div>
+        <div class="chart-card" style="margin-top:14px">
+          <div class="card-header">
+            <div class="card-title">🏆 הבולטים השבוע</div>
+            <button class="btn btn-blue" onclick="loadAnalytics(true)">🔄 רענן</button>
+          </div>
+          <div id="anHighlights" style="display:grid;grid-template-columns:1fr;gap:10px"></div>
+        </div>
+        <div class="chart-card" style="margin-top:14px">
+          <div class="card-header"><div class="card-title">📊 פירוט לפי מנייה</div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>מנייה</th><th>שם</th><th>מחיר</th><th>יום</th><th>שבוע</th><th>חודש</th><th>RSI</th><th>MA20</th></tr></thead>
+              <tbody id="anTable"></tbody>
+            </table>
+          </div>
         </div>
       </div>
+    </div>
+
+    <!-- Tab 2: Analyst Recommendations -->
+    <div id="anTabAnalysts" style="display:none">
+      <div style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div style="font-size:13px;color:var(--text);font-weight:bold">תקופה:</div>
+        <button class="btn btn-blue" id="anDaysBtn7" onclick="loadAnalysts(7)">7 ימים</button>
+        <button class="btn" style="background:#1a2744" id="anDaysBtn14" onclick="loadAnalysts(14)">14 ימים</button>
+        <button class="btn" style="background:#1a2744" id="anDaysBtn30" onclick="loadAnalysts(30)">30 ימים</button>
+        <div style="flex:1"></div>
+        <div style="font-size:10px;color:var(--muted);text-align:end">מתבסס על yfinance<br>Watchlist + 30 מניות פופולריות</div>
+      </div>
+      <div id="analystsList"></div>
     </div>
   </div>
 
@@ -1022,8 +1038,7 @@ function showPage(pageId, btn) {
   if (pageId === 'settings') loadHealth();
   if (pageId === 'plans') loadPlans();
   if (pageId === 'admin') loadAdmin();
-  if (pageId === 'analytics') loadAnalytics();
-  if (pageId === 'analysts') loadAnalysts();
+  if (pageId === 'analytics') { setAnTab(_anCurrentTab || 'performance'); }
   if (pageId === 'account') loadAccount();
 }
 
@@ -2097,12 +2112,38 @@ async function handleAuthHash() {
   }
 }
 
+// ============= ANALYTICS SUB-TABS =============
+let _anCurrentTab = 'performance';
+
+function setAnTab(tab) {
+  _anCurrentTab = tab;
+  document.querySelectorAll('.sub-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('anTabPerformance').style.display = tab === 'performance' ? '' : 'none';
+  document.getElementById('anTabAnalysts').style.display = tab === 'analysts' ? '' : 'none';
+  if (tab === 'performance') loadAnalytics();
+  if (tab === 'analysts') loadAnalysts(7);
+}
+
 // ============= ANALYSTS =============
+let _anDays = 7;
+
 async function loadAnalysts(days) {
+  if (days) {
+    _anDays = days;
+    // עדכון UI של כפתורי תקופה
+    ['7','14','30'].forEach(d => {
+      const btn = document.getElementById('anDaysBtn' + d);
+      if (btn) {
+        const active = parseInt(d) === days;
+        btn.classList.toggle('btn-blue', active);
+        btn.style.background = active ? '' : '#1a2744';
+      }
+    });
+  }
   const target = document.getElementById('analystsList');
   if (!target) return;
   target.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ אוסף המלצות אנליסטים... (עד 30 שניות)</div>';
-  const recs = await api(`/api/analysts/recent?days=${days||7}&limit=60`) || [];
+  const recs = await api(`/api/analysts/recent?days=${_anDays}&limit=60`) || [];
   if (!recs.length) {
     target.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)"><div style="font-size:48px">🎯</div>אין המלצות אנליסטים בטווח הזה</div>';
     return;
