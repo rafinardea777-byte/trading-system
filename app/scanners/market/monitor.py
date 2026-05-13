@@ -114,19 +114,12 @@ def check_open_signals() -> dict:
 
     with get_session() as session:
         from sqlmodel import select
-        from app.scheduler.jobs import is_symbol_market_open
 
         open_sigs = list(session.exec(select(Signal).where(Signal.status == "open")))
         log.info("monitor_start", count=len(open_sigs))
 
         for sig in open_sigs:
-            # אל תבדוק אם הבורסה של הסמל סגורה (אבל זה לא ימנע סגירה אם כבר נסגרה בעבר)
-            # למעשה - אם השוק סגור נכבד ונחזור בריצה הבאה. ההיסטוריה נשארת.
-            if not is_symbol_market_open(sig.symbol):
-                skipped_closed_market += 1
-                still_open += 1
-                continue
-
+            # המוניטור עובד על היסטוריה - לא צריך שהשוק יהיה פתוח כרגע
             age_days = max((datetime.utcnow() - sig.created_at).days, 1)
             df = _intraday_history(sig.symbol, age_days + 1)
             if df is None or df.empty:
