@@ -50,9 +50,14 @@ def require_authed_or_admin_key(
 
 @router.get("/health")
 def health(user: Optional[User] = Depends(optional_user)):
-    """מצב מערכת - מציג מידע מלא לאדמין, מוסתר לציבור."""
-    base = {"status": "ok", "trading_mode": settings.trading_mode}
-    # אדמין מחובר תמיד מקבל מלא; ב-development גם הכל נחשף
+    """מצב מערכת - כולל מצב שווקים. אדמין מקבל מידע מלא."""
+    from app.scheduler.jobs import is_il_market_open, is_us_market_open
+    base = {
+        "status": "ok",
+        "trading_mode": settings.trading_mode,
+        "us_market_open": is_us_market_open(),
+        "il_market_open": is_il_market_open(),
+    }
     if (user and user.is_admin) or not settings.public_mode:
         return {
             **base,

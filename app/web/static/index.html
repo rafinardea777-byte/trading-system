@@ -47,6 +47,9 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);mi
 .search-wrap input::placeholder{color:var(--muted);direction:rtl}
 @media(max-width:520px){.search-wrap input{width:120px}}
 .time-badge{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--muted)}
+.mkt-status{display:flex;gap:6px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:10px;color:var(--text)}
+.mkt-status span{white-space:nowrap}
+@media(max-width:600px){.mkt-status{font-size:9px;padding:4px 6px}.mkt-status span{display:block;line-height:1.4}}
 .btn{border:none;border-radius:8px;padding:7px 14px;color:white;font-size:12px;cursor:pointer;font-weight:bold}
 .btn-blue{background:linear-gradient(135deg,#0066cc,#0044aa)}
 .btn-green{background:linear-gradient(135deg,#1a7f37,#0a5c28)}
@@ -403,6 +406,7 @@ body{padding-bottom:70px}
           <div class="bell-list" id="bellList"><div class="notif-empty">טוען...</div></div>
         </div>
       </div>
+      <div id="marketStatusSlot"></div>
       <div class="time-badge" id="clock">⏰ --</div>
       <div id="authSlot"><button class="btn btn-blue" onclick="openLogin()" id="loginBtn">🔓 התחבר</button></div>
       <button class="btn btn-blue" onclick="runScan('news')">🔄 חדשות</button>
@@ -1325,12 +1329,34 @@ async function loadHealth() {
   setText('cfgAI', h.use_openai === undefined ? hidden : (h.use_openai ? '✅ פעיל' : '❌ לא מוגדר'));
   setText('cfgTg', h.telegram_alerts === undefined ? hidden : (h.telegram_alerts ? '✅ פעיל' : '❌ כבוי'));
 
-  const lbl = h.use_x_api || h.use_openai ? 'בוט פעיל' : 'בוט במצב בסיסי';
+  // מצב שווקים - תמיד מוצג, גם לאנונימיים
+  _marketStatus = {us: h.us_market_open, il: h.il_market_open};
+  renderMarketStatus();
+
+  const anyOpen = h.us_market_open || h.il_market_open;
+  const lbl = anyOpen ? '🟢 שוק פתוח - בוט פעיל' : '🌙 שוק סגור - הבוט במנוחה';
   setText('botStatusLabel', lbl);
   setText('botStatusLabelMobile', lbl);
   const mode = `מצב: ${h.trading_mode || '--'}`;
   setText('botStatusMode', mode);
   setText('botStatusModeMobile', mode);
+}
+
+// ============= MARKET STATUS BADGE =============
+let _marketStatus = {us: null, il: null};
+
+function renderMarketStatus() {
+  const slot = document.getElementById('marketStatusSlot');
+  if (!slot) return;
+  const u = _marketStatus.us, i = _marketStatus.il;
+  if (u === null || i === null) { slot.innerHTML = ''; return; }
+  const usDot = u ? '🟢' : '🔴';
+  const ilDot = i ? '🟢' : '🔴';
+  slot.innerHTML = `
+    <div class="mkt-status" title="${u || i ? 'יש שוק פעיל' : 'שני השווקים סגורים - סיגנלי שוק לא יתעדכנו עד הפתיחה'}">
+      <span>${usDot} 🇺🇸 NYSE</span>
+      <span>${ilDot} 🇮🇱 TASE</span>
+    </div>`;
 }
 
 function getAdminKey() {
@@ -1343,10 +1369,15 @@ function getAdminKey() {
 }
 
 async function runScan(kind) {
-  // הרשאה: JWT של משתמש מחובר Pro+/admin מספיק. אחרת ננסה Admin Key.
+  // הרשאה: JWT של משתמש מחובר מספיק. אחרת ננסה Admin Key.
   const headers = Object.assign({'Content-Type': 'application/json'}, authHeader());
   const stored = localStorage.getItem('adminKey');
   if (stored) headers['X-Admin-Key'] = stored;
+
+  // אזהרה אם סריקת שוק כששני השווקים סגורים - לא יווצרו סיגנלים חדשים
+  if (kind === 'market' && _marketStatus.us === false && _marketStatus.il === false) {
+    if (!confirm('⚠️ שני השווקים סגורים כרגע (NYSE + TASE).\n\nהסריקה תרוץ אבל לא יווצרו סיגנלים חדשים - הבוט נמנע מסיגנל על נתונים סטטיים.\n\nלהמשיך?')) return;
+  }
 
   toast(`מפעיל סריקת ${kind === 'news' ? 'חדשות' : 'שוק'}...`);
   const r = await fetch(API + `/api/system/scan/${kind}`, {method: 'POST', headers});
@@ -1371,7 +1402,19 @@ async function runScan(kind) {
   if (r.status === 429) { toast('❌ יותר מדי בקשות - חכה דקה'); return; }
   if (!r.ok) { toast('❌ נכשל - בדוק logs'); return; }
 
-  toast('✅ הסריקה רצה ברקע. רענן בעוד דקה');
+  toast('✅ הסריקה רצה ברקע');
+  // רענון אוטומטי של הדשבורד אחרי 8 שניות (חדשות) / 90 שניות (שוק)
+  const refreshDelay = kind === 'news' ? 8000 : 90000;
+  setTimeout(() => {
+    toast(`🔄 מרענן ${kind === 'news' ? 'חדשות' : 'סיגנלים'}...`);
+    if (kind === 'news') {
+      loadNews();
+      if (document.querySelector('.page.active')?.id === 'page-dashboard') loadDashboard();
+    } else {
+      loadDashboard();
+      loadSignals();
+    }
+  }, refreshDelay);
 }
 
 // ============= STOCK DETAIL MODAL =============
