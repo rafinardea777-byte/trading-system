@@ -157,7 +157,7 @@ tr:hover td{background:#0a1020}
 @media(min-width:768px){.toast{bottom:30px}}
 
 /* DISCLAIMER */
-.disclaimer{background:linear-gradient(90deg,#3a1a00,#5a2a00);border:1px solid #8b4500;color:#ffd9a8;padding:8px 14px;font-size:12px;text-align:center;line-height:1.5;cursor:pointer}
+.disclaimer{background:linear-gradient(90deg,#3a1a00,#5a2a00);border:1px solid #8b4500;color:#ffd9a8;padding:8px 14px;font-size:12px;text-align:center;line-height:1.5;cursor:pointer;position:relative;z-index:50}
 .disclaimer:hover{background:linear-gradient(90deg,#4a2200,#6a3500)}
 .disclaimer strong{color:#ffb366}
 .disclaimer-full{background:#1a1004;border-bottom:1px solid #8b4500;color:#ffd9a8;padding:14px;font-size:11px;line-height:1.7;display:none}
@@ -234,6 +234,26 @@ tr:hover td{background:#0a1020}
 .digest-extra-item .auth{color:var(--blue);font-weight:bold;margin-left:6px}
 .digest-extra-item a{color:var(--blue);text-decoration:none}
 .digest-extra-item a:hover{text-decoration:underline}
+
+/* WATCHLIST TICKER (sticky top bar) */
+.wl-ticker{position:fixed;top:0;left:0;right:0;height:36px;background:linear-gradient(90deg,#1a1308,#080c14 80%);border-bottom:1px solid var(--gold);display:none;align-items:center;z-index:90;overflow:hidden;font-size:12px}
+.wl-ticker.show{display:flex}
+.wl-ticker-label{background:var(--gold);color:#080c14;padding:7px 12px;font-weight:bold;font-size:11px;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:6px}
+.wl-ticker-pulse{width:8px;height:8px;background:#080c14;border-radius:50%;animation:tickerPulse 1.5s infinite}
+@keyframes tickerPulse{0%,100%{opacity:1}50%{opacity:.3}}
+.wl-ticker-track{flex:1;overflow:hidden;position:relative;mask-image:linear-gradient(to left, transparent, black 50px, black calc(100% - 50px), transparent)}
+.wl-ticker-strip{display:flex;gap:30px;align-items:center;animation:tickerScroll 60s linear infinite;will-change:transform;padding:0 20px}
+.wl-ticker-strip:hover{animation-play-state:paused}
+@keyframes tickerScroll{from{transform:translateX(100%)}to{transform:translateX(-100%)}}
+.wl-ticker-item{cursor:pointer;white-space:nowrap;color:var(--text);display:flex;align-items:center;gap:8px}
+.wl-ticker-item:hover{color:var(--gold)}
+.wl-ticker-sym{background:linear-gradient(135deg,#b8860b,#8b6914);color:#fff;padding:2px 8px;border-radius:4px;font-weight:bold;font-size:10px;direction:ltr}
+.wl-ticker-text{font-size:11px;max-width:400px;overflow:hidden;text-overflow:ellipsis;direction:ltr;text-align:left}
+.wl-ticker-time{color:var(--muted);font-size:10px}
+.wl-ticker-close{position:absolute;left:0;top:0;bottom:0;width:32px;display:flex;align-items:center;justify-content:center;color:var(--muted);background:transparent;border:none;cursor:pointer;font-size:14px}
+.wl-ticker-close:hover{color:var(--red)}
+body.has-ticker{padding-top:36px}
+@media(max-width:600px){.wl-ticker-text{max-width:200px}.wl-ticker-strip{animation-duration:45s}}
 
 /* WATCHED NEWS */
 .news-card.watched-news{border-right:3px solid var(--gold);background:linear-gradient(90deg,rgba(255,215,0,0.06),var(--card) 60%);position:relative;animation:wlPulse 0.6s ease-out}
@@ -326,6 +346,18 @@ body{padding-bottom:70px}
 </style>
 </head>
 <body>
+
+<!-- WATCHLIST NEWS TICKER (top) -->
+<div class="wl-ticker" id="wlTicker">
+  <div class="wl-ticker-label">
+    <span class="wl-ticker-pulse"></span>
+    ⭐ WATCH
+  </div>
+  <div class="wl-ticker-track">
+    <div class="wl-ticker-strip" id="wlTickerStrip"></div>
+  </div>
+  <button class="wl-ticker-close" onclick="dismissTicker()" title="הסתר עד הרענון הבא">✕</button>
+</div>
 
 <div class="disclaimer" onclick="toggleDisclaimer()">
   ⚠️ <strong>אזהרה:</strong> אין במידע משום ייעוץ או המלצה להשקעה • לחץ למידע מלא
@@ -428,9 +460,15 @@ body{padding-bottom:70px}
       <div class="stat-card gold"><div class="stat-icon">💰</div><div class="stat-number" id="statMonthlyPnl">--</div><div class="stat-label">רווח חודשי</div></div>
       <div class="stat-card red"><div class="stat-icon">📂</div><div class="stat-number" id="statOpenPos">--</div><div class="stat-label">עסקאות פתוחות</div></div>
     </div>
-    <div class="chart-card" id="watchedNewsCard" style="display:none">
-      <div class="card-header"><div class="card-title" style="color:var(--gold)">⭐ חדשות על Watchlist שלך</div><div class="card-badge" id="watchedNewsCount" style="background:linear-gradient(135deg,#b8860b,#8b6914);color:#fff">0</div></div>
-      <div id="dashWatchedNews"><div class="news-empty" style="text-align:center;padding:14px;color:var(--muted);font-size:12px">אין עדיין חדשות על המניות שלך - חזור כשיש סריקה חדשה</div></div>
+    <div class="chart-card" id="watchedNewsCard" style="display:none;border:2px solid var(--gold);background:linear-gradient(180deg,rgba(255,215,0,0.04),var(--card) 40%)">
+      <div class="card-header" style="border-bottom:1px solid rgba(255,215,0,0.2);padding-bottom:10px;margin-bottom:10px">
+        <div class="card-title" style="color:var(--gold);font-size:16px">⭐ חדשות חמות על Watchlist שלך</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div class="card-badge" id="watchedNewsCount" style="background:linear-gradient(135deg,#b8860b,#8b6914);color:#fff;font-weight:bold">0</div>
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:#1a1308;color:var(--gold);border:1px solid var(--gold)" onclick="loadWatchedNews(true)">🔄</button>
+        </div>
+      </div>
+      <div id="dashWatchedNews"><div class="news-empty" style="text-align:center;padding:14px;color:var(--muted);font-size:12px">אין עדיין חדשות על המניות שלך</div></div>
     </div>
     <div class="chart-card">
       <div class="card-header"><div class="card-title">🔥 סיגנלים פתוחים</div><div class="card-badge" id="openCount">0</div></div>
@@ -677,6 +715,10 @@ body{padding-bottom:70px}
         <div class="info-card">
           <h4>🎯 יעדי אנליסטים</h4>
           <div id="infoAnalysts"></div>
+        </div>
+        <div class="info-card" style="grid-column:1/-1">
+          <h4>📰 חדשות אחרונות על המנייה</h4>
+          <div id="infoStockNews" style="font-size:12px;line-height:1.6"></div>
         </div>
         <div class="info-card" style="grid-column:1/-1">
           <h4>📷 Finviz Snapshot</h4>
@@ -1079,20 +1121,112 @@ async function loadDashboard() {
   await loadWatchedNews();
 }
 
-async function loadWatchedNews() {
+async function loadWatchedNews(force) {
   const card = document.getElementById('watchedNewsCard');
   if (!isLoggedIn() || wlGet().length === 0) {
     if (card) card.style.display = 'none';
+    updateTicker([]);
     return;
   }
-  const news = await api('/api/news?watchlist_only=true&limit=10&hours_back=72') || [];
+  const news = await api('/api/news?watchlist_only=true&limit=40&hours_back=72') || [];
   card.style.display = '';
   document.getElementById('watchedNewsCount').textContent = news.length;
-  if (news.length) {
-    document.getElementById('dashWatchedNews').innerHTML = news.map(renderNews).join('');
-  } else {
-    document.getElementById('dashWatchedNews').innerHTML = '<div class="news-empty" style="text-align:center;padding:14px;color:var(--muted);font-size:12px">אין עדיין חדשות על המניות שלך - חזור כשיש סריקה חדשה</div>';
+
+  // עדכון הטיקר
+  updateTicker(news);
+
+  if (!news.length) {
+    document.getElementById('dashWatchedNews').innerHTML = '<div class="news-empty" style="text-align:center;padding:14px;color:var(--muted);font-size:12px">אין עדיין חדשות על המניות שלך</div>';
+    return;
   }
+
+  // קיבוץ לפי מנייה (primary symbol)
+  const wl = new Set(wlGet());
+  const bySymbol = {};
+  for (const n of news) {
+    const syms = (n.mentioned_symbols || '').split(',').filter(s => s && wl.has(s));
+    if (!syms.length) continue;
+    const primarySym = syms[0];
+    if (!bySymbol[primarySym]) bySymbol[primarySym] = [];
+    bySymbol[primarySym].push(n);
+  }
+
+  // סדר לפי מספר פריטים יורד
+  const sorted = Object.entries(bySymbol).sort((a, b) => b[1].length - a[1].length);
+
+  let html = '';
+  for (const [sym, items] of sorted) {
+    const top = items[0];
+    const topHebrew = top.hebrew_translation || top.hebrew_explanation || '';
+    const topText = (top.text || '').replace(/\[👍 \d+ \| 💬 \d+\] /, '').slice(0, 160);
+    const time = top.fetched_at ? timeAgo(top.fetched_at) : '';
+    html += `
+      <div class="wl-group" style="background:#080c14;border:1px solid var(--border);border-right:3px solid var(--gold);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="wl-symbol-badge" onclick="openStock('${sym}')" style="cursor:pointer">⭐ ${sym}</span>
+            <span style="color:var(--muted);font-size:10px">${items.length} כותרות</span>
+          </div>
+          <span style="color:var(--muted);font-size:10px">${time}</span>
+        </div>
+        <div style="font-size:12px;line-height:1.4;margin-bottom:4px">${escapeHtml(topText)}</div>
+        ${topHebrew ? `<div style="font-size:11px;color:#bcc7d6;background:rgba(0,212,255,0.05);border-right:2px solid var(--blue);padding:4px 8px;border-radius:0 4px 4px 0;margin-top:6px">🇮🇱 ${escapeHtml(topHebrew)}</div>` : ''}
+        ${items.length > 1 ? `<button class="btn" style="background:none;border:none;color:var(--blue);font-size:11px;padding:4px 0;cursor:pointer" onclick="this.nextElementSibling.style.display='block';this.style.display='none'">+ ${items.length - 1} עוד</button>
+        <div style="display:none;margin-top:6px">${items.slice(1).map(n => `<div style="font-size:11px;color:var(--muted);padding:4px 0;border-top:1px dashed var(--border)">${escapeHtml((n.text || '').replace(/\\[👍 \\d+ \\| 💬 \\d+\\] /, '').slice(0, 130))} <a href="${escapeAttr(n.url||'#')}" target="_blank" style="color:var(--blue)">↗</a></div>`).join('')}</div>` : ''}
+        ${top.url ? `<a href="${escapeAttr(top.url)}" target="_blank" style="font-size:10px;color:var(--blue);text-decoration:none;display:inline-block;margin-top:6px">📎 קישור למקור</a>` : ''}
+      </div>`;
+  }
+  document.getElementById('dashWatchedNews').innerHTML = html;
+}
+
+// =========== WATCHLIST TICKER ===========
+let _tickerDismissed = false;
+
+function updateTicker(news) {
+  const ticker = document.getElementById('wlTicker');
+  const strip = document.getElementById('wlTickerStrip');
+  if (!ticker || !strip) return;
+
+  if (_tickerDismissed || !news.length || !isLoggedIn() || wlGet().length === 0) {
+    ticker.classList.remove('show');
+    document.body.classList.remove('has-ticker');
+    return;
+  }
+
+  // קח עד 20 פריטים אחרונים, עם סמל שב-watchlist
+  const wl = new Set(wlGet());
+  const items = news.filter(n => {
+    const syms = (n.mentioned_symbols || '').split(',').filter(Boolean);
+    return syms.some(s => wl.has(s));
+  }).slice(0, 20);
+
+  if (!items.length) {
+    ticker.classList.remove('show');
+    document.body.classList.remove('has-ticker');
+    return;
+  }
+
+  // כפילות לאנימציה רציפה
+  const html = items.concat(items).map(n => {
+    const sym = (n.mentioned_symbols || '').split(',').filter(s => wl.has(s))[0] || '?';
+    const text = (n.text || '').replace(/\[👍 \d+ \| 💬 \d+\] /, '').slice(0, 120);
+    const time = n.fetched_at ? timeAgo(n.fetched_at) : '';
+    return `<div class="wl-ticker-item" onclick="openStock('${sym}')">
+      <span class="wl-ticker-sym">${sym}</span>
+      <span class="wl-ticker-text">${escapeHtml(text)}</span>
+      <span class="wl-ticker-time">${time}</span>
+    </div>`;
+  }).join('');
+  strip.innerHTML = html;
+
+  ticker.classList.add('show');
+  document.body.classList.add('has-ticker');
+}
+
+function dismissTicker() {
+  _tickerDismissed = true;
+  document.getElementById('wlTicker').classList.remove('show');
+  document.body.classList.remove('has-ticker');
 }
 
 // === REAL-TIME WATCHLIST NEWS POLLING ===
@@ -1472,6 +1606,38 @@ function setTvFrame(symbol, interval, range) {
   document.getElementById('tvChart').src = buildTvUrl(symbol, interval, range);
 }
 
+async function loadStockNews(symbol) {
+  const target = document.getElementById('infoStockNews');
+  if (!target) return;
+  // מביא את כל החדשות מ-72 שעות אחרונות, מסנן בצד-לקוח לסמל הספציפי
+  const news = await api(`/api/news?limit=200&hours_back=72`) || [];
+  const filtered = news.filter(n => {
+    const syms = (n.mentioned_symbols || '').split(',');
+    return syms.includes(symbol);
+  }).slice(0, 8);
+
+  if (!filtered.length) {
+    target.innerHTML = '<div style="text-align:center;color:var(--muted);padding:12px;font-size:11px">אין חדשות אחרונות על ' + symbol + '</div>';
+    return;
+  }
+
+  target.innerHTML = filtered.map(n => {
+    const text = (n.text || '').replace(/\[👍 \d+ \| 💬 \d+\] /, '').slice(0, 180);
+    const heb = n.hebrew_translation || n.hebrew_explanation || '';
+    const time = n.fetched_at ? timeAgo(n.fetched_at) : '';
+    const srcLabel = ({rss:'📺', stocktwits:'💬', reddit:'🔴', twitter:'🐦'})[n.source] || '📰';
+    return `<div style="padding:10px;border-bottom:1px solid var(--border);font-size:12px">
+      <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px">
+        <span style="font-weight:bold;color:var(--blue);font-size:11px">${srcLabel} ${escapeHtml(n.author || '')}</span>
+        <span style="color:var(--muted);font-size:10px">${time}</span>
+      </div>
+      <div style="line-height:1.4">${escapeHtml(text)}</div>
+      ${heb ? `<div style="margin-top:4px;font-size:11px;color:#bcc7d6;border-right:2px solid var(--blue);padding:3px 6px;background:rgba(0,212,255,0.04);border-radius:0 4px 4px 0">🇮🇱 ${escapeHtml(heb)}</div>` : ''}
+      ${n.url ? `<a href="${escapeAttr(n.url)}" target="_blank" rel="noopener" style="color:var(--blue);font-size:10px;text-decoration:none">📎 קישור →</a>` : ''}
+    </div>`;
+  }).join('');
+}
+
 async function openStock(symbol) {
   const modal = document.getElementById('stockModal');
   modal.classList.add('show');
@@ -1482,12 +1648,16 @@ async function openStock(symbol) {
   document.getElementById('mName').textContent = 'טוען...';
   document.getElementById('mPrice').textContent = '--';
   document.getElementById('mChange').textContent = '';
-  ['infoGeneral','infoTrading','infoFundamentals','infoAnalysts'].forEach(id => {
-    document.getElementById(id).innerHTML = '<div class="modal-loading">טוען...</div>';
+  ['infoGeneral','infoTrading','infoFundamentals','infoAnalysts','infoStockNews'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="modal-loading">טוען...</div>';
   });
   document.getElementById('infoSummary').textContent = '';
   document.getElementById('finvizImg').src = '';
   document.getElementById('finvizLink').href = `https://finviz.com/quote.ashx?t=${symbol}`;
+
+  // טען חדשות פר-סמל במקביל
+  loadStockNews(symbol);
 
   // גרף - ברירת מחדל 6 חודשים יומי
   document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
@@ -2200,9 +2370,18 @@ loadHealth();
 ensureBrowserNotifyPermission();
 pollNotifications();
 pollWatchlistNews();          // טעינה ראשונית - לא מציג popup, רק שומר last id
+refreshTicker();              // טוען את הטיקר גם אם לא בדשבורד
 setInterval(loadDashboard, 60000);
 setInterval(pollNotifications, 30000);
 setInterval(pollWatchlistNews, 20000);  // real-time alerts כל 20 שניות
+setInterval(refreshTicker, 45000);     // טיקר רץ ברקע
+
+async function refreshTicker() {
+  if (_tickerDismissed) return;
+  if (!isLoggedIn() || wlGet().length === 0) return;
+  const news = await api('/api/news?watchlist_only=true&limit=20&hours_back=72');
+  if (news) updateTicker(news);
+}
 </script>
 </body>
 </html>
