@@ -80,7 +80,7 @@ def create_checkout(data: CheckoutIn, user: User = Depends(current_user)):
             success_url=f"{settings.public_base_url}?upgrade=success&session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{settings.public_base_url}?upgrade=cancel",
             metadata={"user_id": str(user.id), "plan": data.plan},
-            locale="he",
+            locale="auto",  # Stripe לא תומך בעברית; auto = לפי הגדרת הדפדפן (יציג אנגלית)
         )
 
         return CheckoutOut(url=session.url, mode="stripe")
