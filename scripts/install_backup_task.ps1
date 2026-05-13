@@ -1,13 +1,16 @@
 # רישום משימה מתוזמנת לגיבוי יומי ב-02:00 בלילה
-$ScriptPath = "$PSScriptRoot\backup_db.ps1"
-$WorkDir    = (Resolve-Path "$PSScriptRoot\..").Path
+# משתמש ב-Python script כדי לא להיחסם ע"י SQLite WAL
+$Root       = (Resolve-Path "$PSScriptRoot\..").Path
+$PyScript   = "$Root\scripts\backup_db.py"
+$PyExe      = "$Root\.venv\Scripts\python.exe"
+$WorkDir    = $Root
 $TaskName   = "TradingProBackup"
 
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 
 $action = New-ScheduledTaskAction `
-    -Execute 'powershell.exe' `
-    -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -NoProfile -File `"$ScriptPath`"" `
+    -Execute $PyExe `
+    -Argument "`"$PyScript`"" `
     -WorkingDirectory $WorkDir
 
 # פעם ביום ב-02:00 בלילה
@@ -34,4 +37,4 @@ Write-Host "[i] Run manually now? powershell -File $ScriptPath"
 # הרצה ראשונה מיידית לבדיקה
 Write-Host ""
 Write-Host "Running first backup now..."
-& $ScriptPath
+& $PyExe $PyScript
