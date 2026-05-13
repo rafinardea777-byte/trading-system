@@ -1,4 +1,5 @@
 """המלצות אנליסטים - אגרגציה ממניות פופולריות + watchlist המשתמש."""
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -7,7 +8,14 @@ from pydantic import BaseModel
 from sqlmodel import select
 
 from app.auth.deps import optional_user
+from app.core.logging import get_logger
 from app.storage import User, UserWatchlist, get_session
+
+log = get_logger(__name__)
+
+# קאש פשוט - 30 דקות (אנליסטים לא משנים המלצות תוך יום בד"כ)
+_CACHE: dict[str, tuple[datetime, list]] = {}
+_CACHE_TTL = timedelta(minutes=30)
 
 router = APIRouter(prefix="/api/analysts", tags=["analysts"])
 
@@ -31,7 +39,13 @@ class RecOut(BaseModel):
 
 
 def _fetch_recommendations(symbol: str, max_age_days: int = 7) -> list[RecOut]:
-    """ממיר recommendations של yfinance ל-list."""
+    """ממיר recommendations של yfinance ל-list. עם cache של 30 דקות."""
+    # בדיקת cache
+    cache_key = f"{symbol}:{max_age_days}"
+    cached = _CACHE.get(cache_key)
+    if cached and (datetime.utcnow() - cached[0]) < _CACHE_TTL:
+        return cached[1]
+
     try:
         import yfinance as yf
         import pandas as pd
@@ -70,8 +84,11 @@ def _fetch_recommendations(symbol: str, max_age_days: int = 7) -> list[RecOut]:
                 ))
             except Exception:
                 continue
-        return out[:5]
+        result = out[:5]
+        _CACHE[cache_key] = (datetime.utcnow(), result)
+        return result
     except Exception:
+        _CACHE[cache_key] = (datetime.utcnow(), [])
         return []
 
 
@@ -99,9 +116,15 @@ def recent_recommendations(
     # מבטח שלא נסרוק יותר מ-30
     symbols = symbols[:30]
 
+    # מקבילי - עד 10 סמלים בו זמנית. רץ ~5-10x מהר מסדרתי
     all_recs: list[RecOut] = []
-    for sym in symbols:
-        all_recs.extend(_fetch_recommendations(sym, max_age_days=days))
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(_fetch_recommendations, sym, days): sym for sym in symbols}
+        for future in as_completed(futures):
+            try:
+                all_recs.extend(future.result(timeout=15))
+            except Exception as e:
+                log.debug("analyst_fetch_failed", symbol=futures[future], error=str(e))
 
     # מיון - חדש קודם
     all_recs.sort(key=lambda r: r.date, reverse=True)

@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     company_name: str = "TradingPro"
     contact_email: str = "admin@tradingpro.app"
 
+    # --- Error monitoring (optional - Sentry) ---
+    sentry_dsn: str = ""  # https://sentry.io - חינם 5K errors/חודש
+    sentry_traces_sample_rate: float = 0.1  # 10% מהבקשות עוברות לטרייסינג
+
     # --- Scheduling ---
     enable_scheduler: bool = True
     news_scan_interval_hours: int = 4

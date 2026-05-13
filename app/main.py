@@ -10,6 +10,24 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.responses import JSONResponse
 
+# Sentry - אופציונלי, מופעל רק אם SENTRY_DSN מוגדר
+from app.core.config import settings as _settings
+if _settings.sentry_dsn:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+        sentry_sdk.init(
+            dsn=_settings.sentry_dsn,
+            traces_sample_rate=_settings.sentry_traces_sample_rate,
+            environment=_settings.app_env,
+            integrations=[StarletteIntegration(), FastApiIntegration()],
+            send_default_pii=False,
+        )
+    except Exception as _e:
+        import sys
+        sys.stderr.write(f"Sentry init failed: {_e}\n")
+
 from app.api import admin as admin_router
 from app.api import ai_chat as ai_chat_router
 from app.api import analysts as analysts_router
