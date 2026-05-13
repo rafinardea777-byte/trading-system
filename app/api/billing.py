@@ -119,14 +119,27 @@ def verify_session(session_id: str, user: User = Depends(current_user)):
     plan = (session.get("metadata") or {}).get("plan", "pro")
     sub_id = session.get("subscription")
 
+    # אם sub_id חסר מה-session (Stripe לעיתים מאחר) - ננסה לאתר מ-customer
+    if not sub_id:
+        customer_id = session.get("customer")
+        if customer_id:
+            try:
+                import stripe as _s
+                subs = _s.Subscription.list(customer=customer_id, status="active", limit=1).data
+                if subs:
+                    sub_id = subs[0].id
+            except Exception:
+                pass
+
     with get_session() as db:
         u = db.get(User, user.id)
         if u:
             u.plan = plan
-            u.stripe_subscription_id = sub_id
+            if sub_id:
+                u.stripe_subscription_id = sub_id
             u.subscription_status = "active"
             db.add(u)
-            log.info("user_upgraded_via_verify", user_id=user.id, plan=plan)
+            log.info("user_upgraded_via_verify", user_id=user.id, plan=plan, sub_id=sub_id)
 
     return {"ok": True, "plan": plan, "message": "subscription activated"}
 
