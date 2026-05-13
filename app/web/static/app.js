@@ -1,5 +1,237 @@
 const API = '';
 
+// ============= RECENTLY VIEWED =============
+const RECENT_KEY = 'recentlyViewed';
+const RECENT_MAX = 10;
+
+function recentAdd(sym) {
+  if (!sym) return;
+  sym = sym.toUpperCase();
+  try {
+    let list = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    list = list.filter(s => s !== sym);
+    list.unshift(sym);
+    if (list.length > RECENT_MAX) list = list.slice(0, RECENT_MAX);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+    renderRecentChips();
+  } catch (e) {}
+}
+
+function recentGet() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
+}
+
+function renderRecentChips() {
+  const card = document.getElementById('recentViewedCard');
+  const chips = document.getElementById('recentViewedChips');
+  if (!card || !chips) return;
+  const list = recentGet();
+  if (!list.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  chips.innerHTML = list.map(s =>
+    `<button onclick="openStock('${s}')" style="background:var(--card);border:1px solid var(--border);color:var(--blue);padding:6px 12px;border-radius:16px;font-size:12px;font-weight:bold;cursor:pointer;white-space:nowrap;direction:ltr">${s}</button>`
+  ).join('');
+}
+
+// ============= PRICE ALERTS =============
+async function alertsList() {
+  return await api('/api/me/alerts') || [];
+}
+
+async function alertCreate(symbol, target, direction, note) {
+  const r = await fetch(API + '/api/me/alerts', {
+    method: 'POST',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify({symbol, target_price: target, direction, note: note || null}),
+  });
+  const data = await r.json().catch(() => ({}));
+  return r.ok ? data : {error: data.detail || 'failed'};
+}
+
+async function alertDelete(id) {
+  await fetch(API + `/api/me/alerts/${id}`, {method: 'DELETE', headers: authHeader()});
+}
+
+function openAlertDialog(symbol) {
+  symbol = (symbol || '').toUpperCase();
+  if (!isLoggedIn()) { openLogin(); return; }
+  const target = prompt(`📊 הגדר התראת מחיר ל-${symbol}\n\nמחיר יעד (USD/אגורות):`, '');
+  if (!target) return;
+  const tNum = parseFloat(target);
+  if (isNaN(tNum) || tNum <= 0) { toast('מחיר לא תקין'); return; }
+  const dir = confirm(`כיוון התראה ל-${symbol} ב-$${tNum}:\nOK = מעל המחיר הזה ⬆️\nCancel = מתחת למחיר הזה ⬇️`) ? 'above' : 'below';
+  alertCreate(symbol, tNum, dir).then(result => {
+    if (result.error) toast(result.error);
+    else { toast(`✅ נוצרה התראה: ${symbol} ${dir==='above'?'⬆️':'⬇️'} $${tNum}`); }
+  });
+}
+
+// ============= PORTFOLIO =============
+let _portTab = 'open';
+
+function setPortTab(tab) {
+  _portTab = tab;
+  document.querySelectorAll('#page-portfolio .sub-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  loadPortfolio();
+}
+
+async function loadPortfolio() {
+  const gate = document.getElementById('portfolioAuthGate');
+  const content = document.getElementById('portfolioContent');
+  if (!isLoggedIn()) { gate.style.display=''; content.style.display='none'; return; }
+  gate.style.display='none'; content.style.display='';
+
+  const addBtn = document.getElementById('portAddBtn');
+  if (_portTab === 'alerts') {
+    if (addBtn) addBtn.textContent = '+ הוסף התראת מחיר';
+    return loadAlertsList();
+  }
+
+  if (addBtn) addBtn.textContent = '+ הוסף פוזיציה';
+  const positions = await api(`/api/me/portfolio?status=${_portTab}`) || [];
+  renderPortStats(positions);
+  renderPortList(positions);
+}
+
+function renderPortStats(positions) {
+  const total = positions.length;
+  const totalPnl = positions.reduce((s, p) => s + (p.pnl_dollars || 0), 0);
+  const winners = positions.filter(p => (p.pnl_pct || 0) > 0).length;
+  const totalValue = positions.reduce((s, p) => s + (p.shares * (p.current_price || p.avg_price)), 0);
+
+  const pnlColor = totalPnl >= 0 ? 'green' : 'red';
+  const cards = [
+    {icon: '📊', value: total, label: 'פוזיציות', color: 'blue'},
+    {icon: '💰', value: `$${totalValue.toFixed(0)}`, label: 'שווי תיק', color: 'gold'},
+    {icon: totalPnl >= 0 ? '📈' : '📉', value: `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(0)}`, label: 'P&L סה"כ', color: pnlColor},
+    {icon: '🏆', value: total ? `${Math.round(winners/total*100)}%` : '—', label: 'Win Rate', color: 'green'},
+  ];
+  document.getElementById('portStats').innerHTML = cards.map(c => `
+    <div class="stat-card ${c.color}">
+      <div class="stat-icon">${c.icon}</div>
+      <div class="stat-number">${c.value}</div>
+      <div class="stat-label">${c.label}</div>
+    </div>`).join('');
+}
+
+function renderPortList(positions) {
+  const target = document.getElementById('portList');
+  if (!positions.length) {
+    const emoji = _portTab === 'open' ? '📭' : '📦';
+    const msg = _portTab === 'open' ? 'אין פוזיציות פתוחות. לחץ "+ הוסף פוזיציה" כדי להתחיל מעקב' : 'אין פוזיציות סגורות עדיין';
+    target.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px;margin-bottom:10px">${emoji}</div>${msg}</div>`;
+    return;
+  }
+  target.innerHTML = positions.map(p => {
+    const pnl = p.pnl_dollars;
+    const pct = p.pnl_pct;
+    const isWin = pnl > 0;
+    const cls = pnl === null ? '' : (isWin ? 'win' : 'loss');
+    const pnlCls = pnl === null ? '' : (isWin ? 'pos' : 'neg');
+    const sign = isWin ? '+' : '';
+    const date = new Date(p.opened_at).toLocaleDateString('he-IL');
+    const closedDate = p.closed_at ? new Date(p.closed_at).toLocaleDateString('he-IL') : null;
+    return `<div class="pos-card ${cls}">
+      <div class="pos-info">
+        <div class="pos-sym" onclick="openStock('${p.symbol}')">${p.symbol}</div>
+        <div class="pos-meta">${p.shares} מניות @ $${p.avg_price.toFixed(2)} · נפתח ${date}${closedDate ? ` · נסגר ${closedDate}` : ''}</div>
+        ${p.current_price ? `<div class="pos-meta">מחיר נוכחי: $${p.current_price}</div>` : ''}
+      </div>
+      <div class="pos-pnl ${pnlCls}">
+        ${pnl !== null ? `<div class="amt">${sign}$${pnl.toFixed(0)}</div><div class="pct">${sign}${(pct||0).toFixed(2)}%</div>` : '<div class="amt">--</div>'}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        ${p.status === 'open' ? `<button class="btn btn-blue" style="padding:4px 10px;font-size:11px" onclick="portClose(${p.id}, '${p.symbol}')">סגור</button>` : ''}
+        <button class="btn" style="background:#5a1212;color:#fff;padding:4px 10px;font-size:11px" onclick="portDelete(${p.id})">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function portShowAdd() {
+  if (_portTab === 'alerts') {
+    const sym = prompt('סמל מנייה:');
+    if (!sym) return;
+    return openAlertDialog(sym.toUpperCase());
+  }
+  const sym = prompt('סמל מנייה (לדוגמה NVDA):');
+  if (!sym) return;
+  const shares = parseFloat(prompt('כמה מניות?'));
+  if (!shares || shares <= 0) { toast('מספר מניות לא תקין'); return; }
+  const price = parseFloat(prompt('מחיר ממוצע למנייה ($):'));
+  if (!price || price <= 0) { toast('מחיר לא תקין'); return; }
+  const r = await fetch(API + '/api/me/portfolio', {
+    method: 'POST',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify({symbol: sym.toUpperCase(), shares, avg_price: price}),
+  });
+  if (r.ok) { toast(`נוספה ${sym}`); loadPortfolio(); }
+  else { const e = await r.json(); toast(e.detail || 'שגיאה'); }
+}
+
+async function portClose(id, sym) {
+  const exit = parseFloat(prompt(`מחיר יציאה ל-${sym} ($):`));
+  if (!exit || exit <= 0) return;
+  const r = await fetch(API + `/api/me/portfolio/${id}/close`, {
+    method: 'POST',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify({exit_price: exit}),
+  });
+  if (r.ok) { toast(`${sym} נסגרה`); loadPortfolio(); }
+}
+
+async function portDelete(id) {
+  if (!confirm('למחוק לצמיתות?')) return;
+  await fetch(API + `/api/me/portfolio/${id}`, {method: 'DELETE', headers: authHeader()});
+  loadPortfolio();
+}
+
+async function loadAlertsList() {
+  const alerts = await api('/api/me/alerts?active_only=false') || [];
+  const target = document.getElementById('portList');
+  document.getElementById('portStats').innerHTML = `
+    <div class="stat-card blue" style="grid-column:1/-1">
+      <div class="stat-icon">🔔</div>
+      <div class="stat-number">${alerts.filter(a=>!a.triggered).length}</div>
+      <div class="stat-label">התראות פעילות (מתוך ${alerts.length})</div>
+    </div>`;
+  if (!alerts.length) {
+    target.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px;margin-bottom:10px">🔔</div>אין התראות מחיר. לחץ "+" כדי ליצור</div>';
+    return;
+  }
+  target.innerHTML = alerts.map(a => {
+    const dirArrow = a.direction === 'above' ? '⬆️' : '⬇️';
+    const status = a.triggered ?
+      `<span style="color:var(--green)">✅ הופעלה ב-$${a.triggered_price?.toFixed(2)} (${new Date(a.triggered_at).toLocaleDateString('he-IL')})</span>` :
+      `<span style="color:var(--blue)">⏳ ממתינה</span>`;
+    return `<div class="pos-card ${a.triggered?'':''}" style="border-right:3px solid ${a.triggered?'var(--green)':'var(--gold)'}">
+      <div class="pos-info">
+        <div class="pos-sym" onclick="openStock('${a.symbol}')">${a.symbol} ${dirArrow} $${a.target_price.toFixed(2)}</div>
+        <div class="pos-meta">${status}</div>
+      </div>
+      <button class="btn" style="background:#5a1212;color:#fff;padding:4px 10px;font-size:11px" onclick="alertDeleteUI(${a.id})">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+async function alertDeleteUI(id) {
+  if (!confirm('למחוק התראה?')) return;
+  await alertDelete(id);
+  loadAlertsList();
+}
+
+// ============= DAILY DIGEST TOGGLE =============
+async function acToggleDigest(enabled) {
+  const r = await fetch(API + '/api/me/digest-pref', {
+    method: 'POST',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify({enabled}),
+  });
+  if (r.ok) toast(enabled ? '✅ דוח יומי הופעל' : 'דוח יומי כבוי');
+}
+
+
+
 // ============= AUTH =============
 const TOKEN_KEY = 'authToken';
 const USER_KEY  = 'authUser';
@@ -174,6 +406,7 @@ function showPage(pageId, btn) {
   if (pageId === 'plans') loadPlans();
   if (pageId === 'admin') loadAdmin();
   if (pageId === 'analytics') { setAnTab(_anCurrentTab || 'performance'); }
+  if (pageId === 'portfolio') { setPortTab(_portTab || 'open'); }
   if (pageId === 'account') loadAccount();
 }
 
@@ -339,6 +572,7 @@ async function loadSignals() {
 }
 
 async function loadDashboard() {
+  renderRecentChips();
   loadStats();
   await wlLoad(true);  // ודא ש-wlGet() יחזיר מצב מעודכן ל-renderNews
   const sigs = await api('/api/signals?limit=4&status=open') || [];
@@ -898,6 +1132,7 @@ async function loadStockNews(symbol) {
 
 async function openStock(symbol) {
   symbol = (symbol || '').toUpperCase();
+  recentAdd(symbol);  // הוסף ל-Recently Viewed
   const modal = document.getElementById('stockModal');
   modal.classList.add('show');
   document.body.style.overflow = 'hidden';
@@ -1114,6 +1349,10 @@ async function loadAccount() {
     ? '✅ מאומת'
     : '⚠️ לא אומת — נשלח לך מייל בעת ההרשמה';
   document.getElementById('acJoined').textContent = new Date(u.created_at).toLocaleDateString('he-IL');
+
+  // טוגל דוח יומי
+  const digestEl = document.getElementById('digestToggle');
+  if (digestEl) digestEl.checked = !!u.daily_digest_enabled;
 }
 
 async function acSaveName() {
@@ -1867,6 +2106,7 @@ applyTheme(localStorage.getItem('theme') || 'dark');
 handleAuthHash();             // אם יש hash עם reset/verify token - לטפל
 handlePostPayment();          // אם הגיע אחרי תשלום - אמת + שדרג
 validateSession();           // קודם כל לאמת token אם יש
+renderRecentChips();          // הצגת recent viewed
 loadDashboard();
 loadHealth();
 ensureBrowserNotifyPermission();

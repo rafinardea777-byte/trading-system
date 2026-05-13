@@ -35,6 +35,9 @@ class User(SQLModel, table=True):
     # Compliance
     accepted_terms_at: Optional[datetime] = None
 
+    # User preferences
+    daily_digest_enabled: bool = Field(default=False)
+
 
 class Scan(SQLModel, table=True):
     """ריצה של סורק (news או market)."""
@@ -115,6 +118,36 @@ class UserWatchlist(SQLModel, table=True):
     symbol: str = Field(index=True)
     note: Optional[str] = None
     added_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class PriceAlert(SQLModel, table=True):
+    """התראת מחיר - 'תודיע לי כש-X חוצה Y' לכיוון 'מעל' או 'מתחת'."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    symbol: str = Field(index=True)
+    target_price: float
+    direction: str = Field(default="above")  # above | below
+    note: Optional[str] = None
+    triggered: bool = Field(default=False, index=True)
+    triggered_at: Optional[datetime] = None
+    triggered_price: Optional[float] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PortfolioPosition(SQLModel, table=True):
+    """פוזיציה בתיק - 'קניתי X מניות של Y במחיר Z'."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    symbol: str = Field(index=True)
+    shares: float
+    avg_price: float
+    opened_at: datetime = Field(default_factory=datetime.utcnow)
+    closed_at: Optional[datetime] = None
+    exit_price: Optional[float] = None
+    status: str = Field(default="open", index=True)  # open | closed
+    notes: Optional[str] = None
 
 
 class TradeJournal(SQLModel, table=True):

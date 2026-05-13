@@ -68,6 +68,7 @@ def init_db() -> None:
             _add_column_if_missing(conn, "user", "stripe_subscription_id", "TEXT")
             _add_column_if_missing(conn, "user", "subscription_status", "TEXT")
             _add_column_if_missing(conn, "user", "accepted_terms_at", "TEXT")
+            _add_column_if_missing(conn, "user", "daily_digest_enabled", "BOOLEAN DEFAULT 0")
 
 
 _VALID_TABLE = re.compile(r"^[a-z_][a-z0-9_]*$")

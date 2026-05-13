@@ -102,6 +102,144 @@ def _cleanup_job():
         log.error("scheduled_cleanup_failed", error=str(e))
 
 
+def _price_alerts_job():
+    """בדיקת התראות מחיר פעילות. מפעיל התראה כשמחיר חוצה את היעד."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from datetime import datetime as _dt
+    from app.storage import PriceAlert, get_session
+    from app.storage.repository import add_notification
+    from sqlmodel import select
+
+    try:
+        import yfinance as yf
+    except ImportError:
+        return
+
+    def get_price(sym: str) -> Optional[float]:
+        try:
+            info = yf.Ticker(sym).fast_info
+            return float(info.get("last_price") or info.get("lastPrice") or 0) or None
+        except Exception:
+            return None
+
+    with get_session() as session:
+        active = list(session.exec(
+            select(PriceAlert).where(PriceAlert.triggered == False)  # noqa: E712
+        ))
+        if not active:
+            return
+
+        # קבץ סמלים ייחודיים - הימנע מקריאה כפולה
+        symbols = list({a.symbol for a in active})
+        prices: dict[str, Optional[float]] = {}
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            futures = {ex.submit(get_price, s): s for s in symbols}
+            for f in as_completed(futures):
+                prices[futures[f]] = f.result(timeout=10) if not f.exception() else None
+
+        triggered = 0
+        for alert in active:
+            price = prices.get(alert.symbol)
+            if price is None:
+                continue
+            hit = (alert.direction == "above" and price >= alert.target_price) or \
+                  (alert.direction == "below" and price <= alert.target_price)
+            if not hit:
+                continue
+
+            alert.triggered = True
+            alert.triggered_at = _dt.utcnow()
+            alert.triggered_price = price
+            session.add(alert)
+            triggered += 1
+
+            # הוסף התראה למשתמש
+            arrow = "📈" if alert.direction == "above" else "📉"
+            sign = ">=" if alert.direction == "above" else "<="
+            add_notification(
+                session,
+                kind="alert",
+                title=f"🔔 {alert.symbol} - יעד מחיר הופעל",
+                message=f"{alert.symbol} {arrow} ${price:.2f} {sign} ${alert.target_price:.2f}",
+                symbol=alert.symbol,
+                icon="🔔",
+                user_id=alert.user_id,
+            )
+
+        log.info("price_alerts_check", active=len(active), triggered=triggered)
+
+
+def _daily_digest_job():
+    """דוח יומי במייל למשתמשים שביקשו - ב-08:00 שעון ישראל."""
+    from datetime import datetime as _dt, timedelta as _td
+    from app.core.email import send_email
+    from app.storage import NewsItem, Notification, Signal, User, UserWatchlist, get_session
+    from sqlmodel import select
+
+    with get_session() as session:
+        users = list(session.exec(
+            select(User).where(User.daily_digest_enabled == True)  # noqa: E712
+        ))
+        if not users:
+            return
+
+        cutoff = _dt.utcnow() - _td(hours=24)
+        sent = 0
+        for u in users:
+            try:
+                wl_syms = [r.symbol for r in session.exec(
+                    select(UserWatchlist).where(UserWatchlist.user_id == u.id)
+                )]
+                if not wl_syms:
+                    continue
+
+                news_count = len(list(session.exec(
+                    select(NewsItem).where(
+                        NewsItem.fetched_at >= cutoff,
+                        NewsItem.mentioned_symbols.is_not(None),
+                    )
+                )))
+                signals_count = len(list(session.exec(
+                    select(Signal).where(Signal.created_at >= cutoff)
+                )))
+                alerts = list(session.exec(
+                    select(Notification).where(
+                        Notification.user_id == u.id,
+                        Notification.created_at >= cutoff,
+                        Notification.kind == "alert",
+                    )
+                ))
+
+                from app.core.config import settings as _s
+                subject = f"☕ דוח בוקר - {_dt.now().strftime('%d/%m/%Y')}"
+                body = f"""<!DOCTYPE html><html dir="rtl"><body style="font-family:Arial,sans-serif;background:#f4f6f8;padding:20px">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:30px">
+  <h2 style="color:#00d4ff;margin-bottom:20px">☕ בוקר טוב {u.full_name or ''}</h2>
+  <p>הנה מה שקרה ב-24 השעות האחרונות:</p>
+  <ul style="font-size:14px;line-height:2">
+    <li>📰 <b>{news_count}</b> כתבות חדשות על מניות במעקב</li>
+    <li>🔥 <b>{signals_count}</b> סיגנלים חדשים</li>
+    <li>🔔 <b>{len(alerts)}</b> התראות מחיר הופעלו</li>
+    <li>⭐ <b>{len(wl_syms)}</b> מניות ב-Watchlist שלך</li>
+  </ul>
+  <p style="margin-top:20px">
+    <a href="{_s.public_base_url}" style="background:#00d4ff;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">פתח את האפליקציה →</a>
+  </p>
+  <hr style="margin-top:24px;border:none;border-top:1px solid #e2e8f0">
+  <div style="font-size:11px;color:#718096">
+    לביטול הדוח היומי: היכנס ל-"החשבון שלי" → כבה את התיבה.<br>
+    ⚠️ אין במידע משום ייעוץ השקעות.
+  </div>
+</div></body></html>"""
+                result = send_email(u.email, subject, body)
+                if result.sent:
+                    sent += 1
+            except Exception as e:
+                log.warning("digest_send_failed", user_id=u.id, error=str(e))
+
+        log.info("daily_digest_done", users=len(users), sent=sent)
+
+
 def start_scheduler() -> None:
     global _scheduler
     if _scheduler:
@@ -139,6 +277,23 @@ def start_scheduler() -> None:
         _cleanup_job,
         CronTrigger(hour=3, minute=0, timezone=_IL),
         id="db_cleanup",
+        max_instances=1,
+        coalesce=True,
+    )
+    # בדיקת התראות מחיר - כל 15 דקות
+    _scheduler.add_job(
+        _price_alerts_job,
+        IntervalTrigger(minutes=15),
+        id="price_alerts",
+        next_run_time=datetime.now(),
+        max_instances=1,
+        coalesce=True,
+    )
+    # דוח יומי - 08:00 שעון ישראל
+    _scheduler.add_job(
+        _daily_digest_job,
+        CronTrigger(hour=8, minute=0, timezone=_IL),
+        id="daily_digest",
         max_instances=1,
         coalesce=True,
     )

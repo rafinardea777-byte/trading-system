@@ -51,6 +51,7 @@ class UserOut(BaseModel):
     plan: str
     is_admin: bool
     email_verified: bool = False
+    daily_digest_enabled: bool = False
     created_at: datetime
 
 

@@ -230,6 +230,27 @@ tr:hover td{background:#0a1020}
 .clickable-sym{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:rgba(0,212,255,0.3);transition:color .2s}
 .clickable-sym:hover{color:#fff;text-decoration-color:var(--blue)}
 
+/* TOGGLE SWITCH */
+.toggle-switch{position:relative;display:inline-block;width:42px;height:22px}
+.toggle-switch input{display:none}
+.toggle-switch .slider{position:absolute;cursor:pointer;inset:0;background:#374151;border-radius:22px;transition:.2s}
+.toggle-switch .slider::before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.toggle-switch input:checked + .slider{background:var(--blue)}
+.toggle-switch input:checked + .slider::before{transform:translateX(20px)}
+
+/* PORTFOLIO POSITION CARD */
+.pos-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.pos-card.win{border-right:3px solid var(--green)}
+.pos-card.loss{border-right:3px solid var(--red)}
+.pos-info{flex:1;min-width:120px}
+.pos-sym{font-weight:bold;color:var(--blue);font-size:15px;cursor:pointer;direction:ltr}
+.pos-meta{font-size:11px;color:var(--muted);margin-top:3px}
+.pos-pnl{text-align:end;min-width:90px}
+.pos-pnl .amt{font-size:16px;font-weight:bold}
+.pos-pnl .pct{font-size:11px}
+.pos-pnl.pos .amt,.pos-pnl.pos .pct{color:var(--green)}
+.pos-pnl.neg .amt,.pos-pnl.neg .pct{color:var(--red)}
+
 /* SUB-TABS */
 .sub-tabs{display:flex;gap:6px;margin-bottom:18px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:5px;flex-wrap:wrap}
 .sub-tab{flex:1;min-width:140px;background:transparent;border:none;color:var(--muted);padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;text-align:center}
@@ -429,6 +450,7 @@ body{padding-bottom:70px}
   <button class="nav-item" onclick="showPage('journal',this)">📋 יומן עסקאות</button>
   <button class="nav-item" onclick="showPage('scans',this)">🛰️ ריצות סורק</button>
   <button class="nav-item" onclick="showPage('analytics',this)">📈 Analytics</button>
+  <button class="nav-item logged-in-only" onclick="showPage('portfolio',this)" style="display:none">💼 התיק שלי</button>
   <button class="nav-item logged-in-only" onclick="showPage('account',this)" style="display:none">👤 החשבון שלי</button>
   <button class="nav-item" onclick="showPage('plans',this)" style="color:var(--gold);font-weight:bold">💎 שדרוג מנוי</button>
   <button class="nav-item" onclick="showPage('settings',this)">⚙️ הגדרות</button>
@@ -512,6 +534,11 @@ body{padding-bottom:70px}
       <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-number" id="statWinRate">--</div><div class="stat-label">אחוז הצלחה</div></div>
       <div class="stat-card gold"><div class="stat-icon">💰</div><div class="stat-number" id="statMonthlyPnl">--</div><div class="stat-label">רווח חודשי</div></div>
       <div class="stat-card red"><div class="stat-icon">📂</div><div class="stat-number" id="statOpenPos">--</div><div class="stat-label">עסקאות פתוחות</div></div>
+    </div>
+    <!-- Recently Viewed chips -->
+    <div id="recentViewedCard" style="display:none;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">⏱ נצפו לאחרונה</div>
+      <div id="recentViewedChips" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px"></div>
     </div>
     <div class="chart-card" id="watchedNewsCard" style="display:none;border:2px solid var(--gold);background:linear-gradient(180deg,rgba(255,215,0,0.04),var(--card) 40%)">
       <div class="card-header" style="border-bottom:1px solid rgba(255,215,0,0.2);padding-bottom:10px;margin-bottom:10px">
@@ -611,6 +638,26 @@ body{padding-bottom:70px}
       <div class="setting-row"><div class="setting-label">קובץ הגדרות</div><div class="setting-value">.env (העתק מ-.env.example)</div></div>
     </div>
   </div>
+  <!-- PORTFOLIO -->
+  <div class="page" id="page-portfolio">
+    <div class="page-title">💼 <span>התיק שלי</span></div>
+    <div id="portfolioAuthGate" style="text-align:center;padding:40px;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:14px">🔐</div>
+      <div>נדרשת התחברות לתיק האישי</div>
+      <button class="btn btn-blue" style="margin-top:14px" onclick="openLogin()">התחבר</button>
+    </div>
+    <div id="portfolioContent" style="display:none">
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-tab="open" onclick="setPortTab('open')">📈 פתוחות</button>
+        <button class="sub-tab" data-tab="closed" onclick="setPortTab('closed')">📊 סגורות</button>
+        <button class="sub-tab" data-tab="alerts" onclick="setPortTab('alerts')">🔔 התראות מחיר</button>
+      </div>
+      <div class="stats-grid" id="portStats" style="margin-bottom:14px"></div>
+      <div id="portList"></div>
+      <button class="btn btn-blue" id="portAddBtn" onclick="portShowAdd()" style="margin-top:14px">+ הוסף פוזיציה</button>
+    </div>
+  </div>
+
   <!-- ACCOUNT -->
   <div class="page" id="page-account">
     <div class="page-title">👤 <span>החשבון שלי</span></div>
@@ -644,6 +691,20 @@ body{padding-bottom:70px}
                  style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px">
           <button class="btn btn-blue" onclick="acChangePassword()">עדכן סיסמה</button>
         </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>📧 התראות במייל</h3>
+        <div class="setting-row">
+          <div class="setting-label">דוח יומי במייל (ב-08:00)</div>
+          <div class="setting-value">
+            <label class="toggle-switch">
+              <input type="checkbox" id="digestToggle" onchange="acToggleDigest(this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin-top:8px">סיכום יומי: כמה חדשות, סיגנלים, והתראות מחיר. דורש מייל מאומת.</p>
       </div>
 
       <div class="settings-card">
