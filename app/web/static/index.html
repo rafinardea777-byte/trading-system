@@ -47,6 +47,9 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);mi
 .search-wrap input::placeholder{color:var(--muted);direction:rtl}
 @media(max-width:520px){.search-wrap input{width:120px}}
 .time-badge{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--muted)}
+.mobile-only{display:none}
+.mobile-only-flex{display:none}
+@media(max-width:767px){.mobile-only{display:block}.mobile-only-flex{display:flex}}
 .mkt-status{display:flex;gap:6px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:10px;color:var(--text)}
 .mkt-status span{white-space:nowrap}
 @media(max-width:600px){.mkt-status{font-size:9px;padding:4px 6px}.mkt-status span{display:block;line-height:1.4}}
@@ -374,6 +377,10 @@ body{padding-bottom:70px}
 <div class="sidebar">
   <div class="sidebar-logo">📈 Trading<span>Pro</span></div>
   <div class="sidebar-tag">מערכת סיגנלים מאוחדת</div>
+  <div id="sidebarClock" style="background:#080c14;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;color:var(--text);margin-bottom:18px;text-align:center;direction:ltr">
+    <div id="sidebarDate" style="color:var(--blue);font-weight:bold;font-size:12px">--/--/----</div>
+    <div id="sidebarTime" style="color:var(--muted);font-size:13px;font-family:monospace;margin-top:2px">--:--:--</div>
+  </div>
   <button class="nav-item active" onclick="showPage('dashboard',this)">🏠 דשבורד</button>
   <div class="sidebar-scroll">
   <button class="nav-item" onclick="showPage('signals',this)">🔥 סיגנלים</button>
@@ -386,6 +393,10 @@ body{padding-bottom:70px}
   <button class="nav-item" onclick="showPage('plans',this)" style="color:var(--gold);font-weight:bold">💎 שדרוג מנוי</button>
   <button class="nav-item" onclick="showPage('settings',this)">⚙️ הגדרות</button>
   <button class="nav-item admin-only" onclick="showPage('admin',this)" style="display:none">👨‍💼 ניהול</button>
+  </div>
+  <div id="sidebarMarkets" style="background:#080c14;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;margin-bottom:8px;display:none">
+    <div style="color:var(--muted);font-size:10px;margin-bottom:6px;text-align:center">מצב שווקים</div>
+    <div id="sidebarMarketRows" style="display:flex;flex-direction:column;gap:4px"></div>
   </div>
   <div class="bot-status" id="botStatus">
     <div style="display:flex;align-items:center;margin-bottom:6px">
@@ -438,8 +449,9 @@ body{padding-bottom:70px}
           <div class="bell-list" id="bellList"><div class="notif-empty">טוען...</div></div>
         </div>
       </div>
-      <div id="marketStatusSlot"></div>
-      <div class="time-badge" id="clock">⏰ --</div>
+      <!-- שעון ומצב שווקים הועברו ל-sidebar; ב-mobile מוצגים ב-bot-bar -->
+      <div id="marketStatusSlot" class="mobile-only-flex"></div>
+      <div class="time-badge mobile-only" id="clock">⏰ --</div>
       <div id="authSlot"><button class="btn btn-blue" onclick="openLogin()" id="loginBtn">🔓 התחבר</button></div>
       <button class="btn btn-blue" onclick="runScan('news')">🔄 חדשות</button>
       <button class="btn btn-green" onclick="runScan('market')">🔄 שוק</button>
@@ -956,9 +968,18 @@ function showPage(pageId, btn) {
 
 function updateClock() {
   const n = new Date();
-  document.getElementById('clock').textContent = `📅 ${n.toLocaleDateString('he-IL')} | ⏰ ${n.toLocaleTimeString('he-IL')}`;
+  const dateStr = n.toLocaleDateString('he-IL');
+  const timeStr = n.toLocaleTimeString('he-IL');
+  // ה-sidebar (desktop)
+  const sd = document.getElementById('sidebarDate');
+  const st = document.getElementById('sidebarTime');
+  if (sd) sd.textContent = dateStr;
+  if (st) st.textContent = timeStr;
+  // ה-topbar mobile fallback
+  const c = document.getElementById('clock');
+  if (c) c.textContent = `📅 ${dateStr} | ⏰ ${timeStr}`;
   const lu = document.getElementById('lastUpdate');
-  if(lu) lu.textContent = `עדכון: ${n.toLocaleTimeString('he-IL')}`;
+  if(lu) lu.textContent = `עדכון: ${timeStr}`;
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -1480,17 +1501,40 @@ async function loadHealth() {
 let _marketStatus = {us: null, il: null};
 
 function renderMarketStatus() {
-  const slot = document.getElementById('marketStatusSlot');
-  if (!slot) return;
   const u = _marketStatus.us, i = _marketStatus.il;
-  if (u === null || i === null) { slot.innerHTML = ''; return; }
-  const usDot = u ? '🟢' : '🔴';
-  const ilDot = i ? '🟢' : '🔴';
-  slot.innerHTML = `
-    <div class="mkt-status" title="${u || i ? 'יש שוק פעיל' : 'שני השווקים סגורים - סיגנלי שוק לא יתעדכנו עד הפתיחה'}">
-      <span>${usDot} 🇺🇸 NYSE</span>
-      <span>${ilDot} 🇮🇱 TASE</span>
-    </div>`;
+
+  // עדכון ב-sidebar (desktop)
+  const sidebar = document.getElementById('sidebarMarkets');
+  const sidebarRows = document.getElementById('sidebarMarketRows');
+  if (sidebar && sidebarRows) {
+    if (u === null || i === null) {
+      sidebar.style.display = 'none';
+    } else {
+      sidebar.style.display = '';
+      sidebarRows.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>🇺🇸 NYSE</span>
+          <span style="color:${u ? 'var(--green)' : 'var(--red)'};font-weight:bold;font-size:10px">${u ? '🟢 פתוח' : '🔴 סגור'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>🇮🇱 TASE</span>
+          <span style="color:${i ? 'var(--green)' : 'var(--red)'};font-weight:bold;font-size:10px">${i ? '🟢 פתוח' : '🔴 סגור'}</span>
+        </div>`;
+    }
+  }
+
+  // עדכון ב-topbar (mobile fallback)
+  const slot = document.getElementById('marketStatusSlot');
+  if (slot) {
+    if (u === null || i === null) { slot.innerHTML = ''; }
+    else {
+      slot.innerHTML = `
+        <div class="mkt-status">
+          <span>${u ? '🟢' : '🔴'} 🇺🇸</span>
+          <span>${i ? '🟢' : '🔴'} 🇮🇱</span>
+        </div>`;
+    }
+  }
 }
 
 function getAdminKey() {
