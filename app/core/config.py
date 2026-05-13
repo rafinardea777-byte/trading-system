@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # --- Scheduling ---
     enable_scheduler: bool = True
-    news_scan_interval_hours: int = 24
+    news_scan_interval_hours: int = 4
     market_scan_interval_minutes: int = 60
 
     # --- Telegram ---

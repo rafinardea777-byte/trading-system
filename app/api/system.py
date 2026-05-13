@@ -95,3 +95,44 @@ def trigger_monitor(background: BackgroundTasks):
 
     background.add_task(check_open_signals)
     return JobResult(ok=True, detail={"queued": "monitor"})
+
+
+@router.post("/scan/symbol/{symbol}", response_model=JobResult)
+def trigger_single_symbol_scan(symbol: str, background: BackgroundTasks):
+    """סריקה מהירה של סמל יחיד - שימושי אחרי הוספה ל-Watchlist."""
+    import re as _re
+    sym = symbol.strip().upper()
+    if not _re.match(r"^[A-Z]{1,6}(\.[A-Z]{1,3})?$", sym):
+        raise HTTPException(status_code=400, detail="invalid symbol")
+
+    def _scan():
+        from app.storage import get_session, Signal
+        from app.storage.repository import upsert_signal, signal_exists_today
+        from app.scanners.market.signal import evaluate_symbol
+        from app.scheduler.jobs import is_symbol_market_open
+        try:
+            import yfinance as yf
+            if not is_symbol_market_open(sym):
+                return
+            df = yf.Ticker(sym).history(period="60d")
+            if df is None or df.empty:
+                return
+            tech = evaluate_symbol(sym, df)
+            if not tech or tech.strength < settings.min_signal_strength:
+                return
+            with get_session() as session:
+                if signal_exists_today(session, sym):
+                    return
+                sig = Signal(
+                    symbol=tech.symbol, price=tech.price, rsi=tech.rsi,
+                    volume_ratio=tech.volume_ratio, ma_fast=tech.ma_fast,
+                    ma_slow=tech.ma_slow, strength=tech.strength,
+                    target_1=tech.target_1, target_2=tech.target_2,
+                    stop_loss=tech.stop_loss,
+                )
+                upsert_signal(session, sig)
+        except Exception:
+            pass
+
+    background.add_task(_scan)
+    return JobResult(ok=True, detail={"queued": "single_scan", "symbol": sym})

@@ -19,6 +19,7 @@ def list_news(
     limit: int = Query(100, ge=1, le=500),
     source: Optional[Literal["twitter", "rss", "stocktwits", "reddit"]] = Query(None),
     watchlist_only: bool = Query(False, description="רק חדשות שמזכירות מניות מה-watchlist"),
+    symbol: Optional[str] = Query(None, max_length=10, description="סנן רק חדשות שמזכירות סמל זה"),
     since_id: Optional[int] = Query(None, description="רק חדשות שה-id שלהן גדול מהערך הזה"),
     user: Optional[User] = Depends(optional_user),
 ):
@@ -53,7 +54,30 @@ def list_news(
             ]
             return [NewsOut.model_validate(r, from_attributes=True) for r in filtered]
 
-        # זרם רגיל
+        # זרם רגיל - או פילטר לפי symbol ספציפי
+        if symbol:
+            import re as _re
+            sym = symbol.strip().upper()
+            if not _re.match(r"^[A-Z]{1,6}(\.[A-Z]{1,3})?$", sym):
+                return []
+            cutoff = datetime.utcnow() - timedelta(hours=hours_back)
+            stmt = select(NewsItem).where(
+                NewsItem.fetched_at >= cutoff,
+                NewsItem.mentioned_symbols.is_not(None),
+                NewsItem.mentioned_symbols.contains(sym),
+            )
+            if source:
+                stmt = stmt.where(NewsItem.source == source)
+            if since_id is not None:
+                stmt = stmt.where(NewsItem.id > since_id)
+            rows = list(session.exec(stmt.order_by(NewsItem.id.desc()).limit(limit)))
+            # ודא שהסמל באמת מופיע (contains יכול לתפוס substring - למשל "AAP" ב-"AAPL")
+            filtered = [
+                r for r in rows
+                if r.mentioned_symbols and sym in r.mentioned_symbols.split(",")
+            ]
+            return [NewsOut.model_validate(r, from_attributes=True) for r in filtered]
+
         rows = get_news(session, hours_back=hours_back, limit=limit, source=source)
         if since_id is not None:
             rows = [r for r in rows if r.id > since_id]

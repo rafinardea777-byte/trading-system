@@ -90,6 +90,18 @@ def _monitor_job():
         log.error("scheduled_monitor_failed", error=str(e))
 
 
+def _cleanup_job():
+    """מחיקת נתונים ישנים - news/notifs > 60-90 יום, closed signals > 180 יום."""
+    from app.storage import get_session
+    from app.storage.repository import cleanup_old_data
+    try:
+        with get_session() as session:
+            result = cleanup_old_data(session)
+        log.info("scheduled_cleanup_done", **result)
+    except Exception as e:
+        log.error("scheduled_cleanup_failed", error=str(e))
+
+
 def start_scheduler() -> None:
     global _scheduler
     if _scheduler:
@@ -121,12 +133,22 @@ def start_scheduler() -> None:
         max_instances=1,
         coalesce=True,
     )
+    # ניקוי DB - פעם ביום ב-03:00 שעון ישראל
+    from apscheduler.triggers.cron import CronTrigger
+    _scheduler.add_job(
+        _cleanup_job,
+        CronTrigger(hour=3, minute=0, timezone=_IL),
+        id="db_cleanup",
+        max_instances=1,
+        coalesce=True,
+    )
     _scheduler.start()
     log.info(
         "scheduler_started",
         news_every_h=settings.news_scan_interval_hours,
         market_every_min=settings.market_scan_interval_minutes,
         monitor_every_h=2,
+        cleanup_daily_at="03:00 IL",
     )
 
 

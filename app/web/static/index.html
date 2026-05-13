@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TradingPro</title>
+<link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+<link rel="apple-touch-icon" href="/static/icon.svg">
 <link rel="manifest" href="/static/manifest.json">
 <meta name="theme-color" content="#080c14">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1257,23 +1259,30 @@ async function pollWatchlistNews() {
   if (!isLoggedIn() || wlGet().length === 0) return;
   const params = new URLSearchParams({
     watchlist_only: 'true',
-    limit: '5',
-    hours_back: '24',
+    limit: '20',
+    hours_back: '72',
   });
-  if (_lastWatchedNewsId > 0) params.set('since_id', String(_lastWatchedNewsId));
-  const news = await api('/api/news?' + params.toString());
-  if (!news || !news.length) return;
+  // טוען לטיקר את כל הטריים, ל-popup רק חדשים מהביקור האחרון
+  const allNews = await api('/api/news?' + params.toString());
+  if (!allNews || !allNews.length) return;
 
-  // ראשון = החדש ביותר
-  const newest = news[0];
+  // עדכון הטיקר עם כל החדשות (זה מחליף את refreshTicker - אין double polling)
+  updateTicker(allNews);
+
+  const newest = allNews[0];
   if (newest.id <= _lastWatchedNewsId) return;
 
-  // אם זאת לא הטעינה הראשונה - הצג popup + browser notification
+  // אם זאת לא הטעינה הראשונה - הצג popup + browser notification + החזר ticker אם הוסתר
   const isFirstLoad = _lastWatchedNewsId === 0;
   _lastWatchedNewsId = newest.id;
   localStorage.setItem('lastWatchedNewsId', String(_lastWatchedNewsId));
 
   if (!isFirstLoad) {
+    // הופיעה חדשה - אם המשתמש הסתיר את הטיקר, נחזיר אותו (יש משהו חדש לראות)
+    _tickerDismissed = false;
+    updateTicker(allNews);
+
+    const news = allNews.filter(n => n.id > _lastWatchedNewsId - 100); // החדשים יחסית
     news.slice(0, 3).forEach(n => showWatchlistPopup(n));
     // אם יש הרשאת browser - הודעה native
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -1653,19 +1662,15 @@ function setTvFrame(symbol, interval, range) {
 async function loadStockNews(symbol) {
   const target = document.getElementById('infoStockNews');
   if (!target) return;
-  // מביא את כל החדשות מ-72 שעות אחרונות, מסנן בצד-לקוח לסמל הספציפי
-  const news = await api(`/api/news?limit=200&hours_back=72`) || [];
-  const filtered = news.filter(n => {
-    const syms = (n.mentioned_symbols || '').split(',');
-    return syms.includes(symbol);
-  }).slice(0, 8);
+  // פילטור בשרת - מהיר ויעיל יותר
+  const news = await api(`/api/news?symbol=${encodeURIComponent(symbol)}&limit=10&hours_back=72`) || [];
 
-  if (!filtered.length) {
+  if (!news.length) {
     target.innerHTML = '<div style="text-align:center;color:var(--muted);padding:12px;font-size:11px">אין חדשות אחרונות על ' + symbol + '</div>';
     return;
   }
 
-  target.innerHTML = filtered.map(n => {
+  target.innerHTML = news.map(n => {
     const text = (n.text || '').replace(/\[👍 \d+ \| 💬 \d+\] /, '').slice(0, 180);
     const heb = n.hebrew_translation || n.hebrew_explanation || '';
     const time = n.fetched_at ? timeAgo(n.fetched_at) : '';
@@ -2268,11 +2273,16 @@ async function wlToggle(sym) {
     if (isRemoving) {
       await fetch(API + `/api/me/watchlist/${sym}`, {method: 'DELETE', headers: authHeader()});
     } else {
-      await fetch(API + '/api/me/watchlist', {
+      const r = await fetch(API + '/api/me/watchlist', {
         method: 'POST',
         headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
         body: JSON.stringify({symbol: sym}),
       });
+      if (r.status === 402) {
+        const e = await r.json();
+        toast(e.detail || 'הגעת למגבלת התוכנית');
+        return;
+      }
     }
   } else {
     if (isRemoving) list.splice(i, 1); else list.push(sym);
@@ -2282,6 +2292,11 @@ async function wlToggle(sym) {
   // עדכון cache
   _wlCache = isRemoving ? list.filter(s => s !== sym) : Array.from(new Set([...list, sym]));
   toast(isRemoving ? `${sym} הוסר מה-Watchlist` : `${sym} נוסף ל-Watchlist`);
+
+  // אם הוספנו מנייה והשוק פתוח - סריקה מהירה ברקע ליצירת סיגנל אם רלוונטי
+  if (!isRemoving && isLoggedIn()) {
+    triggerSingleSymbolScan(sym);
+  }
 
   // רענון UI
   const active = document.querySelector('.page.active')?.id;
@@ -2315,8 +2330,22 @@ async function wlSyncOnLogin() {
     });
     const data = await r.json();
     if (data.added > 0) toast(`${data.added} מניות סונכרנו לחשבון`);
-    // לאחר סנכרון - מנקה את ה-local כדי שלא תהיה כפילות עתידית
+    if (data.truncated > 0) {
+      setTimeout(() => {
+        alert(`⚠️ ${data.truncated} מניות לא נוספו כי הגעת למגבלת התוכנית שלך (${data.plan_limit} מניות).\n\nשדרג ל-Pro או VIP כדי להוסיף עוד.`);
+      }, 600);
+    }
     localStorage.removeItem(WL_KEY);
+  } catch (e) {}
+}
+
+// סריקה חד-סמלית - מופעלת אחרי הוספה ל-Watchlist (אם השוק פתוח)
+async function triggerSingleSymbolScan(sym) {
+  const headers = Object.assign({'Content-Type':'application/json'}, authHeader());
+  try {
+    await fetch(API + `/api/system/scan/symbol/${encodeURIComponent(sym)}`, {
+      method: 'POST', headers,
+    });
   } catch (e) {}
 }
 
@@ -2324,7 +2353,24 @@ async function loadWatchlist(force) {
   const list = await wlLoad(force);
   const grid = document.getElementById('watchlistGrid');
   if (!list.length) {
-    grid.innerHTML = renderEmpty('⭐', 'ה-Watchlist ריק', 'הוסף סמל למעלה או לחץ על ☆ ליד כל מנייה');
+    const popular = ['NVDA','AAPL','TSLA','MSFT','META','GOOG','AMD','PLTR','TEVA','CHKP'];
+    const popularHtml = popular.map(s =>
+      `<button class="btn btn-blue" style="margin:4px;padding:6px 12px;font-size:12px" onclick="wlToggle('${s}')">+ ${s}</button>`
+    ).join('');
+    grid.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:40px 20px;background:var(--card);border:1px dashed var(--border);border-radius:12px">
+        <div style="font-size:64px;margin-bottom:14px">⭐</div>
+        <div style="font-size:18px;font-weight:bold;margin-bottom:8px">ה-Watchlist שלך ריק</div>
+        <div style="color:var(--muted);font-size:13px;margin-bottom:20px">הוסף מניות שאתה רוצה לעקוב אחריהן - תקבל התראות מיידיות על חדשות וסיגנלים</div>
+        <div style="margin-bottom:14px">
+          <input type="text" placeholder="הקלד סמל (NVDA)" maxlength="10" id="wlQuickAdd"
+                 oninput="this.value=this.value.toUpperCase()"
+                 onkeydown="if(event.key==='Enter'){const v=this.value.trim();if(v){wlToggle(v);this.value='';}}"
+                 style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-size:14px;width:200px;direction:ltr;text-align:left">
+        </div>
+        <div style="color:var(--muted);font-size:11px;margin:14px 0 8px">או בחר מהפופולריים:</div>
+        <div style="display:flex;flex-wrap:wrap;justify-content:center;max-width:500px;margin:0 auto">${popularHtml}</div>
+      </div>`;
     return;
   }
   grid.innerHTML = list.map(sym => `<div class="wl-card" id="wl-${sym}"><div class="modal-loading">טוען ${sym}...</div></div>`).join('');
@@ -2414,18 +2460,10 @@ loadHealth();
 ensureBrowserNotifyPermission();
 pollNotifications();
 pollWatchlistNews();          // טעינה ראשונית - לא מציג popup, רק שומר last id
-refreshTicker();              // טוען את הטיקר גם אם לא בדשבורד
+// pollWatchlistNews מטפל גם בטיקר וגם בהתראות - אין צורך ב-refreshTicker נפרד
 setInterval(loadDashboard, 60000);
 setInterval(pollNotifications, 30000);
-setInterval(pollWatchlistNews, 20000);  // real-time alerts כל 20 שניות
-setInterval(refreshTicker, 45000);     // טיקר רץ ברקע
-
-async function refreshTicker() {
-  if (_tickerDismissed) return;
-  if (!isLoggedIn() || wlGet().length === 0) return;
-  const news = await api('/api/news?watchlist_only=true&limit=20&hours_back=72');
-  if (news) updateTicker(news);
-}
+setInterval(pollWatchlistNews, 30000);  // real-time alerts + ticker refresh
 </script>
 </body>
 </html>

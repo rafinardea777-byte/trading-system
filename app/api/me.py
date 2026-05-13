@@ -300,19 +300,37 @@ def watchlist_analytics(user: User = Depends(current_user)):
 
 @router.post("/watchlist/sync")
 def sync_watchlist(data: WatchlistBulkIn, user: User = Depends(current_user)):
-    """איחוד עם רשימה קיימת - מוסיף סמלים שעדיין לא בשרת. שימושי לסנכרון מ-localStorage."""
+    """איחוד עם רשימה קיימת + אכיפת מגבלת תוכנית.
+
+    אם המשתמש הוא FREE ויש לו 3 ב-DB, וברשימה שולחים 10 חדשים -
+    נוסיף רק 2 (להגיע ל-5). מחזיר added + truncated.
+    """
     added = 0
+    truncated = 0
+    plan = limits_for(user)
+    max_allowed = plan.watchlist_max  # 0 = unlimited
     with get_session() as session:
         existing_syms = {
             r.symbol for r in session.exec(
                 select(UserWatchlist).where(UserWatchlist.user_id == user.id)
             )
         }
+        current_count = len(existing_syms)
         for raw in data.symbols:
             sym = _norm(raw)
             if not _valid_symbol(sym) or sym in existing_syms:
                 continue
+            # אכיפת מגבלה
+            if max_allowed > 0 and not user.is_admin and current_count >= max_allowed:
+                truncated += 1
+                continue
             session.add(UserWatchlist(user_id=user.id, symbol=sym))
             existing_syms.add(sym)
+            current_count += 1
             added += 1
-    return {"ok": True, "added": added}
+    return {
+        "ok": True,
+        "added": added,
+        "truncated": truncated,
+        "plan_limit": max_allowed,
+    }

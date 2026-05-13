@@ -178,6 +178,61 @@ def mark_all_read(session: Session) -> int:
     return len(items)
 
 
+def cleanup_old_data(
+    session: Session,
+    news_retention_days: int = 60,
+    closed_signal_retention_days: int = 180,
+    notification_retention_days: int = 90,
+) -> dict:
+    """מוחק נתונים ישנים. רץ פעם ביום בלילה.
+
+    שומר:
+    - News: 60 ימים אחרונים
+    - Notifications: 90 ימים אחרונים
+    - Closed signals: 180 ימים אחרונים (open signals נשמרים תמיד)
+    """
+    from sqlalchemy import delete as sql_delete
+    from app.storage.models import NewsItem, Notification, Signal
+
+    now = datetime.utcnow()
+    cutoff_news = now - timedelta(days=news_retention_days)
+    cutoff_notifs = now - timedelta(days=notification_retention_days)
+    cutoff_signals = now - timedelta(days=closed_signal_retention_days)
+
+    news_count = session.exec(
+        select(NewsItem).where(NewsItem.fetched_at < cutoff_news)
+    ).all()
+    deleted_news = len(news_count)
+    if deleted_news:
+        session.exec(sql_delete(NewsItem).where(NewsItem.fetched_at < cutoff_news))
+
+    notif_count = session.exec(
+        select(Notification).where(Notification.created_at < cutoff_notifs)
+    ).all()
+    deleted_notifs = len(notif_count)
+    if deleted_notifs:
+        session.exec(sql_delete(Notification).where(Notification.created_at < cutoff_notifs))
+
+    sig_count = session.exec(
+        select(Signal).where(
+            Signal.status == "closed",
+            Signal.closed_at < cutoff_signals,
+        )
+    ).all()
+    deleted_signals = len(sig_count)
+    if deleted_signals:
+        session.exec(sql_delete(Signal).where(
+            Signal.status == "closed",
+            Signal.closed_at < cutoff_signals,
+        ))
+
+    return {
+        "deleted_news": deleted_news,
+        "deleted_notifications": deleted_notifs,
+        "deleted_signals": deleted_signals,
+    }
+
+
 def compute_stats(session: Session) -> dict:
     """חישוב סטטיסטיקות מהירות לדשבורד."""
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
