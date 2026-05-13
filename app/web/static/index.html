@@ -16,6 +16,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#080c14;--card:#0d1421;--border:#1e2d3d;--blue:#00d4ff;--green:#00ff88;--red:#ff4466;--gold:#ffd700;--text:#e0e6f0;--muted:#4a5568}
+:root[data-theme="light"]{--bg:#f7fafc;--card:#ffffff;--border:#e2e8f0;--blue:#0070cc;--green:#0a8a4c;--red:#cc2240;--gold:#a17500;--text:#1a202c;--muted:#718096}
 body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
 .sidebar{display:none}
@@ -47,7 +48,32 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);mi
 .search-wrap input{background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:12px;width:170px;direction:ltr;text-align:left}
 .search-wrap input:focus{outline:none;border-color:var(--blue)}
 .search-wrap input::placeholder{color:var(--muted);direction:rtl}
-@media(max-width:520px){.search-wrap input{width:120px}}
+@media(max-width:520px){.search-wrap input{width:110px;font-size:11px}.search-wrap{flex:1;min-width:0}}
+@media(max-width:767px){
+  .topbar{gap:6px}
+  .topbar-right{gap:5px;flex-wrap:wrap;width:100%;justify-content:flex-end}
+  .btn{font-size:11px;padding:6px 8px}
+  .bell-dropdown{width:calc(100vw - 20px);right:0;left:10px}
+  .modal{margin:8px;max-height:calc(100vh - 20px)}
+  .modal-header{padding:12px;flex-wrap:wrap}
+  .modal-symbol{font-size:22px}
+  .modal-name{font-size:13px}
+  .modal-body{padding:10px}
+  .tf-tabs{font-size:10px;flex-wrap:wrap;gap:4px}
+  .tf-btn{padding:5px 8px;font-size:10px}
+  .info-card{padding:10px}
+  .info-card h4{font-size:13px}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .stat-card{padding:10px}
+  .stat-number{font-size:18px}
+  .stat-label{font-size:10px}
+  .digest-card{padding:10px}
+  .news-bilingual{grid-template-columns:1fr}
+  .page-title{font-size:16px}
+  .auth-card{padding:20px;margin:10px}
+  table{font-size:10px}
+  th,td{padding:6px 4px}
+}
 .time-badge{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--muted)}
 .mobile-only{display:none}
 .mobile-only-flex{display:none}
@@ -203,6 +229,11 @@ tr:hover td{background:#0a1020}
 
 .clickable-sym{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:rgba(0,212,255,0.3);transition:color .2s}
 .clickable-sym:hover{color:#fff;text-decoration-color:var(--blue)}
+
+/* AI CHAT */
+.ai-msg{padding:8px 12px;margin-bottom:8px;border-radius:8px;line-height:1.5;font-size:12.5px}
+.ai-msg.user{background:#0d2545;border-right:3px solid var(--blue)}
+.ai-msg.ai{background:#0a1f0a;border-right:3px solid var(--green)}
 
 /* DIGEST CARDS */
 .digest-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;position:relative;transition:border-color .15s}
@@ -391,6 +422,7 @@ body{padding-bottom:70px}
   <button class="nav-item" onclick="showPage('journal',this)">📋 יומן עסקאות</button>
   <button class="nav-item" onclick="showPage('scans',this)">🛰️ ריצות סורק</button>
   <button class="nav-item" onclick="showPage('analytics',this)">📈 Analytics</button>
+  <button class="nav-item" onclick="showPage('analysts',this)">🎯 אנליסטים</button>
   <button class="nav-item logged-in-only" onclick="showPage('account',this)" style="display:none">👤 החשבון שלי</button>
   <button class="nav-item" onclick="showPage('plans',this)" style="color:var(--gold);font-weight:bold">💎 שדרוג מנוי</button>
   <button class="nav-item" onclick="showPage('settings',this)">⚙️ הגדרות</button>
@@ -454,6 +486,7 @@ body{padding-bottom:70px}
       <!-- שעון ומצב שווקים הועברו ל-sidebar; ב-mobile מוצגים ב-bot-bar -->
       <div id="marketStatusSlot" class="mobile-only-flex"></div>
       <div class="time-badge mobile-only" id="clock">⏰ --</div>
+      <button class="btn" id="themeBtn" onclick="toggleTheme()" title="החלף ערכת נושא" style="background:var(--card);border:1px solid var(--border);width:36px;height:32px;padding:0">🌙</button>
       <div id="authSlot"><button class="btn btn-blue" onclick="openLogin()" id="loginBtn">🔓 התחבר</button></div>
       <button class="btn btn-blue" onclick="runScan('news')">🔄 חדשות</button>
       <button class="btn btn-green" onclick="runScan('market')">🔄 שוק</button>
@@ -621,6 +654,19 @@ body{padding-bottom:70px}
     </div>
   </div>
 
+  <!-- ANALYSTS - WEEKLY RECOMMENDATIONS -->
+  <div class="page" id="page-analysts">
+    <div class="page-title">🎯 <span>המלצות אנליסטים השבוע</span></div>
+    <div style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-blue" onclick="loadAnalysts(7)">📅 7 ימים</button>
+      <button class="btn" style="background:#1a2744" onclick="loadAnalysts(14)">📅 14 ימים</button>
+      <button class="btn" style="background:#1a2744" onclick="loadAnalysts(30)">📅 30 ימים</button>
+      <div style="flex:1"></div>
+      <div style="font-size:11px;color:var(--muted)">מתבסס על yfinance · Watchlist שלך + 30 מניות פופולריות</div>
+    </div>
+    <div id="analystsList"></div>
+  </div>
+
   <!-- ANALYTICS - WATCHLIST PERFORMANCE -->
   <div class="page" id="page-analytics">
     <div class="page-title">📈 <span>Analytics Watchlist</span></div>
@@ -689,6 +735,7 @@ body{padding-bottom:70px}
     <div class="modal-header">
       <div class="modal-title">
         <div class="modal-symbol" id="mSymbol">--</div>
+        <button id="mStarBtn" class="star-btn" style="font-size:26px;padding:0 8px" title="הוסף/הסר מ-Watchlist">☆</button>
         <div>
           <div class="modal-name" id="mName">--</div>
           <div><span class="modal-price" id="mPrice">--</span> <span class="modal-change" id="mChange">--</span></div>
@@ -730,6 +777,17 @@ body{padding-bottom:70px}
           <h4>🎯 יעדי אנליסטים</h4>
           <div id="infoAnalysts"></div>
         </div>
+        <div class="info-card" style="grid-column:1/-1">
+          <h4>🤖 AI - שאל על המנייה / העסקה</h4>
+          <div id="aiChatLog" style="background:#080c14;border:1px solid var(--border);border-radius:8px;padding:10px;max-height:280px;overflow-y:auto;margin-bottom:10px;min-height:60px;font-size:13px;line-height:1.5"></div>
+          <div style="display:flex;gap:6px">
+            <input id="aiInput" placeholder="מה הסיכוי שהמנייה תעלה? איך ה-RSI? וכו'..." style="flex:1;background:#080c14;border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:13px"
+                   onkeydown="if(event.key==='Enter')sendAiQuestion()">
+            <button class="btn btn-blue" onclick="sendAiQuestion()">שאל</button>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:6px">⚠️ אינו ייעוץ השקעות. ניתוח טכני מבוסס נתונים בלבד.</div>
+        </div>
+
         <div class="info-card" style="grid-column:1/-1">
           <h4>📰 חדשות אחרונות על המנייה</h4>
           <div id="infoStockNews" style="font-size:12px;line-height:1.6"></div>
@@ -965,6 +1023,7 @@ function showPage(pageId, btn) {
   if (pageId === 'plans') loadPlans();
   if (pageId === 'admin') loadAdmin();
   if (pageId === 'analytics') loadAnalytics();
+  if (pageId === 'analysts') loadAnalysts();
   if (pageId === 'account') loadAccount();
 }
 
@@ -1688,9 +1747,26 @@ async function loadStockNews(symbol) {
 }
 
 async function openStock(symbol) {
+  symbol = (symbol || '').toUpperCase();
   const modal = document.getElementById('stockModal');
   modal.classList.add('show');
   document.body.style.overflow = 'hidden';
+
+  // עדכון כוכב מועדפים בכותרת ה-modal
+  const starBtn = document.getElementById('mStarBtn');
+  if (starBtn) {
+    const update = () => {
+      const inWl = wlHas(symbol);
+      starBtn.textContent = inWl ? '★' : '☆';
+      starBtn.classList.toggle('active', inWl);
+      starBtn.title = inWl ? 'הסר מ-Watchlist' : 'הוסף ל-Watchlist';
+    };
+    update();
+    starBtn.onclick = async () => {
+      await wlToggle(symbol);
+      update();
+    };
+  }
 
   // אתחול בסיסי
   document.getElementById('mSymbol').textContent = symbol;
@@ -2019,6 +2095,88 @@ async function handleAuthHash() {
       toast(e.detail || 'אימות נכשל');
     }
   }
+}
+
+// ============= ANALYSTS =============
+async function loadAnalysts(days) {
+  const target = document.getElementById('analystsList');
+  if (!target) return;
+  target.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">⏳ אוסף המלצות אנליסטים... (עד 30 שניות)</div>';
+  const recs = await api(`/api/analysts/recent?days=${days||7}&limit=60`) || [];
+  if (!recs.length) {
+    target.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)"><div style="font-size:48px">🎯</div>אין המלצות אנליסטים בטווח הזה</div>';
+    return;
+  }
+
+  // קיבוץ לפי סמל
+  const bySymbol = {};
+  for (const r of recs) {
+    if (!bySymbol[r.symbol]) bySymbol[r.symbol] = [];
+    bySymbol[r.symbol].push(r);
+  }
+  const sorted = Object.entries(bySymbol).sort((a, b) => b[1].length - a[1].length);
+
+  target.innerHTML = sorted.map(([sym, list]) => {
+    const starred = wlHas(sym);
+    return `<div class="signal-card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="star-btn ${starred?'active':''}" onclick="event.stopPropagation();wlToggle('${sym}')" style="font-size:18px">${starred?'★':'☆'}</button>
+          <span class="signal-symbol clickable-sym" onclick="openStock('${sym}')">${sym}</span>
+          <span style="color:var(--muted);font-size:11px">${list.length} המלצות</span>
+        </div>
+      </div>
+      ${list.map(r => {
+        const ts = new Date(r.date).toLocaleDateString('he-IL');
+        const grade = r.to_grade || r.action || '';
+        const color = /buy|outperform|overweight|positive|strong|upgrade/i.test(grade) ? 'var(--green)' :
+                      /sell|underperform|underweight|negative|downgrade/i.test(grade) ? 'var(--red)' :
+                      'var(--muted)';
+        return `<div style="font-size:12px;padding:6px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:10px">
+          <div><b>${escapeHtml(r.firm||'?')}</b>: <span style="color:${color}">${escapeHtml(grade||'?')}</span>
+          ${r.from_grade ? ` <span style="color:var(--muted)">(היה: ${escapeHtml(r.from_grade)})</span>` : ''}
+          </div>
+          <div style="color:var(--muted);font-size:11px;white-space:nowrap">${ts}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
+// ============= AI CHAT =============
+async function aiAsk(question, signalId, symbol) {
+  const r = await fetch(API + '/api/ai/ask', {
+    method: 'POST',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify({question, signal_id: signalId, symbol}),
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(()=>({}));
+    return {answer: e.detail || 'שגיאה בבקשה', source: 'error'};
+  }
+  return await r.json();
+}
+
+async function sendAiQuestion() {
+  if (!isLoggedIn()) { toast('נדרשת התחברות'); openLogin(); return; }
+  const input = document.getElementById('aiInput');
+  const q = (input.value || '').trim();
+  if (!q) return;
+
+  const log = document.getElementById('aiChatLog');
+  // הוסף שאלת המשתמש
+  log.innerHTML += `<div class="ai-msg user"><b>אתה:</b> ${escapeHtml(q)}</div>`;
+  log.innerHTML += `<div class="ai-msg ai" id="aiPending"><b>AI:</b> <i>חושב...</i></div>`;
+  log.scrollTop = log.scrollHeight;
+  input.value = '';
+
+  const sym = (document.getElementById('mSymbol')?.textContent || '').trim();
+  const result = await aiAsk(q, null, sym);
+
+  document.getElementById('aiPending').remove();
+  const tag = result.source === 'openai' ? '🤖' : '📊';
+  log.innerHTML += `<div class="ai-msg ai"><b>${tag} AI:</b><br>${escapeHtml(result.answer).replace(/\n/g,'<br>')}</div>`;
+  log.scrollTop = log.scrollHeight;
 }
 
 // ============= ANALYTICS =============
@@ -2515,6 +2673,19 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/static/sw.js', {scope: '/'}).catch(()=>{});
   });
 }
+
+// ========== THEME ==========
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeBtn');
+  if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+  localStorage.setItem('theme', theme);
+}
+function toggleTheme() {
+  const cur = localStorage.getItem('theme') || 'dark';
+  applyTheme(cur === 'light' ? 'dark' : 'light');
+}
+applyTheme(localStorage.getItem('theme') || 'dark');
 
 // אתחול
 handleAuthHash();             // אם יש hash עם reset/verify token - לטפל
