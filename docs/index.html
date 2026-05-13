@@ -69,15 +69,19 @@ async function load() {
       alive = h.ok;
     } catch (e) {}
 
+    // שמירת query params + hash מה-URL הנוכחי (חשוב לחזרה מ-Stripe וכו')
+    const carry = window.location.search + window.location.hash;
+    const finalUrl = url + (carry || '');
+
     if (alive) {
       msg.innerHTML = '<span class="ok">✓ השרת פעיל</span><br>מעביר אותך תוך 2 שניות...';
-      setTimeout(() => window.location.replace(url), 2000);
+      setTimeout(() => window.location.replace(finalUrl), 2000);
     } else {
       msg.innerHTML = '<span class="err">⚠ השרת לא מגיב כרגע</span><br>ייתכן שהוא עולה או שהמחשב כבוי';
     }
 
     const goBtn = document.getElementById('goBtn');
-    goBtn.href = url;
+    goBtn.href = finalUrl;
     document.getElementById('actions').style.display = 'flex';
 
   } catch (err) {

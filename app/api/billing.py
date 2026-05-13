@@ -72,22 +72,63 @@ def create_checkout(data: CheckoutIn, user: User = Depends(current_user)):
                 u.stripe_customer_id = customer_id
                 session.add(u)
 
-        session_url = stripe.checkout.Session.create(
+        session = stripe.checkout.Session.create(
             mode="subscription",
             payment_method_types=["card"],
             customer=customer_id,
             line_items=[{"price": price_id, "quantity": 1}],
-            success_url=f"{settings.public_base_url}?upgrade=success",
+            success_url=f"{settings.public_base_url}?upgrade=success&session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{settings.public_base_url}?upgrade=cancel",
             metadata={"user_id": str(user.id), "plan": data.plan},
-        ).url
+            locale="he",
+        )
 
-        return CheckoutOut(url=session_url, mode="stripe")
+        return CheckoutOut(url=session.url, mode="stripe")
     except ImportError:
         return CheckoutOut(mode="manual", message="ספריית stripe לא מותקנת. צור קשר ידני.")
     except Exception as e:
         log.error("stripe_checkout_failed", error=str(e))
         raise HTTPException(status_code=500, detail="יצירת תשלום נכשלה. נסה שוב או צור קשר.")
+
+
+@router.get("/verify-session")
+def verify_session(session_id: str, user: User = Depends(current_user)):
+    """אימות session אחרי תשלום + שדרוג מיידי של המשתמש.
+
+    משמש כ-fallback ל-webhook בסביבות שאין URL קבוע (tunnel).
+    """
+    if not _stripe_configured():
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+    try:
+        import stripe
+        stripe.api_key = settings.stripe_secret_key
+        session = stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        log.warning("verify_session_failed", error=str(e))
+        raise HTTPException(status_code=400, detail="session not found")
+
+    # ודא שה-session שייך למשתמש המחובר
+    meta_user_id = (session.get("metadata") or {}).get("user_id")
+    if str(user.id) != str(meta_user_id):
+        raise HTTPException(status_code=403, detail="session belongs to another user")
+
+    payment_status = session.get("payment_status")
+    if payment_status != "paid":
+        return {"ok": False, "status": payment_status, "message": "payment not completed yet"}
+
+    plan = (session.get("metadata") or {}).get("plan", "pro")
+    sub_id = session.get("subscription")
+
+    with get_session() as db:
+        u = db.get(User, user.id)
+        if u:
+            u.plan = plan
+            u.stripe_subscription_id = sub_id
+            u.subscription_status = "active"
+            db.add(u)
+            log.info("user_upgraded_via_verify", user_id=user.id, plan=plan)
+
+    return {"ok": True, "plan": plan, "message": "subscription activated"}
 
 
 @router.post("/webhook")

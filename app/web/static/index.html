@@ -1828,12 +1828,43 @@ async function loadPlans() {
   }).join('');
 }
 
-function upgradeRequest(planName) {
+async function upgradeRequest(planName) {
   if (!isLoggedIn()) { openLogin(); return; }
-  // כרגע - שליחת מייל. בעתיד - Stripe checkout
-  const subject = encodeURIComponent(`בקשת שדרוג ל-${planName}`);
-  const body = encodeURIComponent(`היי,\nאני רוצה לשדרג את החשבון שלי ל-${planName}.\nהמייל שלי: ${getUser()?.email || ''}`);
-  window.location.href = `mailto:admin@tradingpro.app?subject=${subject}&body=${body}`;
+  if (planName === 'free') { toast('כבר ב-FREE'); return; }
+
+  toast('פותח דף תשלום...');
+  // בדוק אם Stripe מוגדר
+  const status = await api('/api/billing/status');
+  if (!status || !status.stripe_enabled) {
+    // Stripe לא מוגדר - חזרה לבקשה ידנית
+    const subject = encodeURIComponent(`בקשת שדרוג ל-${planName}`);
+    const body = encodeURIComponent(`היי,\nאני רוצה לשדרג את החשבון שלי ל-${planName}.\nהמייל שלי: ${getUser()?.email || ''}`);
+    window.location.href = `mailto:${status?.contact_email || 'admin@tradingpro.app'}?subject=${subject}&body=${body}`;
+    return;
+  }
+
+  // יצירת Checkout Session
+  try {
+    const r = await fetch(API + '/api/billing/checkout', {
+      method: 'POST',
+      headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+      body: JSON.stringify({plan: planName}),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      toast(data.detail || 'שגיאה ביצירת תשלום');
+      return;
+    }
+    if (data.url) {
+      // הפניה ל-Stripe Checkout
+      window.location.href = data.url;
+    } else if (data.mode === 'manual') {
+      // fallback
+      alert(data.message || 'יצירת קשר ידנית - שלח מייל ל-admin');
+    }
+  } catch (e) {
+    toast('שגיאה: ' + e.message);
+  }
 }
 
 // ============= ACCOUNT =============
@@ -1921,6 +1952,39 @@ async function forgotPassword() {
     toast('אם הכתובת רשומה - יישלח אליה מייל');
   } else {
     toast('שגיאה. נסה שוב.');
+  }
+}
+
+// טיפול בחזרה מ-Stripe Checkout
+async function handlePostPayment() {
+  const params = new URLSearchParams(window.location.search);
+  const upgrade = params.get('upgrade');
+  if (!upgrade) return;
+
+  // נקה את ה-URL כדי שזה לא יתבצע שוב ברענון
+  history.replaceState(null, '', window.location.pathname);
+
+  if (upgrade === 'cancel') {
+    setTimeout(() => toast('תשלום בוטל'), 800);
+    return;
+  }
+
+  if (upgrade === 'success') {
+    const sessionId = params.get('session_id');
+    if (!sessionId) { toast('חוזר מהתשלום...'); return; }
+
+    // ממתין מעט שהsession יעודכן ב-Stripe
+    setTimeout(async () => {
+      const r = await api('/api/billing/verify-session?session_id=' + encodeURIComponent(sessionId));
+      if (r && r.ok) {
+        alert(`🎉 ברוך הבא ל-${(r.plan || '').toUpperCase()}!\n\nהחשבון שלך שודרג בהצלחה.\nהפיצ'רים החדשים זמינים מיד.`);
+        // רענון משתמש
+        await validateSession();
+        loadDashboard();
+      } else {
+        toast(r?.message || 'תשלום מאושר אך השדרוג טרם הופעל - יישלח אישור במייל');
+      }
+    }, 1500);
   }
 }
 
@@ -2454,6 +2518,7 @@ if ('serviceWorker' in navigator) {
 
 // אתחול
 handleAuthHash();             // אם יש hash עם reset/verify token - לטפל
+handlePostPayment();          // אם הגיע אחרי תשלום - אמת + שדרג
 validateSession();           // קודם כל לאמת token אם יש
 loadDashboard();
 loadHealth();
