@@ -51,6 +51,9 @@ def run_market_scan(
                 tech = evaluate_symbol(symbol, df) if df is not None else None
                 if not tech:
                     continue
+                # סינון איכות - רק סיגנלים חזקים מספיק עוברים
+                if tech.strength < settings.min_signal_strength:
+                    continue
                 if signal_exists_today(session, symbol):
                     continue
 

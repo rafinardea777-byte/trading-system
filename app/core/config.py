@@ -86,6 +86,15 @@ class Settings(BaseSettings):
     rsi_max: float = 75
     ma_fast: int = 20
     ma_slow: int = 50
+    min_signal_strength: float = 6.5  # רק סיגנלים איכותיים נכנסים (0-10)
+
+    # --- Trailing stop tiers (gain_pct → new_stop_pct above entry) ---
+    trail_gain_1: float = 0.03   # +3% gain
+    trail_stop_1: float = 0.0    # → stop at breakeven
+    trail_gain_2: float = 0.06   # +6% gain
+    trail_stop_2: float = 0.03   # → stop at +3%
+    trail_gain_3: float = 0.10   # +10% gain
+    trail_stop_3: float = 0.06   # → stop at +6%
 
     # --- Risk ---
     position_size_usd: float = 5000
