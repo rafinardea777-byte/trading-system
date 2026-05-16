@@ -1,8 +1,9 @@
 // TradingPro Service Worker - bumped version on every release
 // CACHE_NAME מועדכן בכל deploy כדי לכפות רענון static assets
 
-const CACHE_NAME = 'tp-v7-2026-05-16-journal';
-const STATIC_ASSETS = ['/static/icon.svg', '/static/manifest.json', '/static/app.js'];
+const CACHE_NAME = 'tp-v9-2026-05-16-fixes';
+// app.js מוגש כעת עם ?v=BUILD - לכן לא צריך לקבע אותו ב-pre-cache
+const STATIC_ASSETS = ['/static/icon.svg', '/static/manifest.json'];
 
 self.addEventListener('install', e => {
   // התקנה מיידית, ללא המתנה ל-tab ישן להיסגר
@@ -21,6 +22,9 @@ self.addEventListener('activate', e => {
       keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
     );
     await self.clients.claim();
+    // הודע לכל ה-tabs שהותקנה גרסה חדשה - הצד-לקוח יעשה reload פעם אחת
+    const clients = await self.clients.matchAll({type: 'window'});
+    clients.forEach(c => c.postMessage({type: 'SW_UPDATED', version: CACHE_NAME}));
   })());
 });
 

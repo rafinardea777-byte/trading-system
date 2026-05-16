@@ -250,12 +250,13 @@ def compute_stats(session: Session) -> dict:
 
     wins = [s for s in closed_month if (s.pnl_pct or 0) > 0]
     win_rate = (len(wins) / len(closed_month) * 100) if closed_month else 0
-    monthly_pnl = sum((s.pnl_pct or 0) for s in closed_month)
+    # ממוצע ולא סכום - אחרת מצטבר ערך מעורר בלבול (10 עסקאות x -10% = -100%)
+    monthly_pnl_avg = (sum((s.pnl_pct or 0) for s in closed_month) / len(closed_month)) if closed_month else 0
 
     return {
         "signals_today": len(today_signals),
         "open_positions": len(open_signals),
         "win_rate_pct": round(win_rate, 1),
-        "monthly_pnl_pct": round(monthly_pnl, 2),
+        "monthly_pnl_pct": round(monthly_pnl_avg, 2),
         "closed_this_month": len(closed_month),
     }

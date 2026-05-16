@@ -950,10 +950,10 @@ function renderJournalStats(s) {
   const pnlCls = s.total_pnl_dollars >= 0 ? 'green' : 'red';
   const pnlSign = s.total_pnl_dollars >= 0 ? '+' : '';
   target.innerHTML = `
-    <div class="stat-card blue"><div class="stat-icon">📋</div><div class="stat-value">${s.total}</div><div class="stat-label">סה"כ עסקאות</div></div>
-    <div class="stat-card"><div class="stat-icon">📂</div><div class="stat-value">${s.open}</div><div class="stat-label">פתוחות</div></div>
-    <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-value">${s.win_rate}%</div><div class="stat-label">Win Rate (${s.wins}/${s.closed})</div></div>
-    <div class="stat-card ${pnlCls}"><div class="stat-icon">💰</div><div class="stat-value">${pnlSign}$${s.total_pnl_dollars.toFixed(0)}</div><div class="stat-label">סה"כ P&L</div></div>
+    <div class="stat-card blue"><div class="stat-icon">📋</div><div class="stat-number">${s.total}</div><div class="stat-label">סה"כ עסקאות</div></div>
+    <div class="stat-card"><div class="stat-icon">📂</div><div class="stat-number">${s.open}</div><div class="stat-label">פתוחות</div></div>
+    <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-number">${s.win_rate}%</div><div class="stat-label">Win Rate (${s.wins}/${s.closed})</div></div>
+    <div class="stat-card ${pnlCls}"><div class="stat-icon">💰</div><div class="stat-number">${pnlSign}$${s.total_pnl_dollars.toFixed(0)}</div><div class="stat-label">סה"כ P&L</div></div>
   `;
 }
 
@@ -1883,7 +1883,13 @@ async function loadAnalytics(force) {
   document.getElementById('anStats').innerHTML = '<div class="stat-card blue" style="grid-column:1/-1;text-align:center"><div class="stat-icon">⏳</div><div class="stat-label">טוען נתוני שוק...</div></div>';
 
   const data = await api('/api/me/analytics');
-  if (!data) { toast('שגיאה בטעינת הנתונים'); return; }
+  if (!data) {
+    toast('שגיאה בטעינת הנתונים');
+    document.getElementById('anStats').innerHTML = '<div class="stat-card" style="grid-column:1/-1;text-align:center;padding:20px;color:var(--muted)">⚠️ לא ניתן לטעון נתונים. בדוק התחברות.</div>';
+    document.getElementById('anHighlights').innerHTML = '';
+    document.getElementById('anTable').innerHTML = '';
+    return;
+  }
 
   if (data.total_symbols === 0) {
     document.getElementById('anStats').innerHTML = '<div class="stat-card" style="grid-column:1/-1;text-align:center;padding:30px"><div class="stat-icon">📭</div><div class="stat-label">ה-Watchlist ריק. הוסף מניות כדי לראות ניתוח.</div></div>';
@@ -2362,6 +2368,19 @@ function exportCSV() {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/static/sw.js', {scope: '/'}).catch(()=>{});
+  });
+  // כשמותקנת גרסה חדשה - reload פעם אחת בלבד (להימנע מ-loop)
+  navigator.serviceWorker.addEventListener('message', (ev) => {
+    const data = ev.data || {};
+    if (data.type === 'SW_UPDATED' && data.version) {
+      const last = sessionStorage.getItem('tp_sw_version');
+      if (last !== data.version) {
+        sessionStorage.setItem('tp_sw_version', data.version);
+        // השהיה קצרה כדי שה-toast יוצג, אחר כך reload
+        toast('🔄 גרסה חדשה זמינה - טוען...');
+        setTimeout(() => location.reload(), 800);
+      }
+    }
   });
 }
 
