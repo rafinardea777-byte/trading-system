@@ -178,6 +178,58 @@ def get_stock(symbol: str):
     return snap
 
 
+# קאש לוח שנה - דוחות לא משתנים בזמן אמת, שעה זה בסדר
+_CALENDAR_CACHE: dict[str, tuple[datetime, dict]] = {}
+_CALENDAR_TTL = timedelta(hours=1)
+
+
+@router.get("/{symbol}/earnings")
+def get_stock_earnings(symbol: str):
+    """לוח דוחות + דיבידנד - תאריכים צפויים, אומדן EPS/הכנסות."""
+    symbol = symbol.upper().strip()
+    if not re.match(r"^[A-Z]{1,6}(\.[A-Z]{1,3})?$", symbol):
+        raise HTTPException(status_code=400, detail="invalid symbol")
+
+    cached = _CALENDAR_CACHE.get(symbol)
+    if cached and (datetime.utcnow() - cached[0]) < _CALENDAR_TTL:
+        return cached[1]
+
+    def _iso(v):
+        if v is None:
+            return None
+        if hasattr(v, "isoformat"):
+            return v.isoformat()
+        return str(v)
+
+    try:
+        import yfinance as yf
+        cal = yf.Ticker(symbol).calendar or {}
+    except Exception as e:
+        log.warning("earnings_fetch_failed", symbol=symbol, error=str(e))
+        raise HTTPException(status_code=502, detail=str(e))
+
+    out: dict = {"symbol": symbol, "fetched_at": datetime.utcnow().isoformat()}
+    dates = cal.get("Earnings Date") or []
+    if isinstance(dates, list):
+        out["earnings_dates"] = [_iso(d) for d in dates if d is not None]
+    elif dates:
+        out["earnings_dates"] = [_iso(dates)]
+    else:
+        out["earnings_dates"] = []
+
+    out["eps_estimate"] = _safe_float(cal.get("EPS Estimate"))
+    out["eps_high"] = _safe_float(cal.get("EPS High"))
+    out["eps_low"] = _safe_float(cal.get("EPS Low"))
+    out["revenue_estimate"] = _safe_int(cal.get("Revenue Estimate"))
+    out["revenue_high"] = _safe_int(cal.get("Revenue High"))
+    out["revenue_low"] = _safe_int(cal.get("Revenue Low"))
+    out["ex_dividend_date"] = _iso(cal.get("Ex-Dividend Date"))
+    out["dividend_date"] = _iso(cal.get("Dividend Date"))
+
+    _CALENDAR_CACHE[symbol] = (datetime.utcnow(), out)
+    return out
+
+
 _VALID_PERIODS = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"}
 _VALID_INTERVALS = {"1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"}
 

@@ -141,30 +141,32 @@ def _current_price(symbol: str) -> Optional[float]:
 @router.get("/portfolio", response_model=list[PositionOut])
 def list_portfolio(status: Optional[str] = None, user: User = Depends(current_user)):
     """תיק - פוזיציות פתוחות (default) או סגורות. כולל P&L נוכחי לפתוחות."""
+    # שלב 1: שליפה + snapshot ל-dicts בתוך session (להימנע מ-DetachedInstanceError)
     with get_session() as session:
         stmt = select(PortfolioPosition).where(PortfolioPosition.user_id == user.id)
         if status in ("open", "closed"):
             stmt = stmt.where(PortfolioPosition.status == status)
         rows = list(session.exec(stmt.order_by(PortfolioPosition.opened_at.desc())))
+        snapshots = [{
+            "id": p.id, "symbol": p.symbol, "shares": p.shares,
+            "avg_price": p.avg_price, "opened_at": p.opened_at,
+            "closed_at": p.closed_at, "exit_price": p.exit_price,
+            "status": p.status, "notes": p.notes,
+        } for p in rows]
 
-    # P&L לפתוחות - מחיר נוכחי
+    # שלב 2: P&L מחושב מחוץ ל-session (yfinance עלול לחסום זמן רב)
     out = []
-    for p in rows:
-        item = PositionOut(
-            id=p.id, symbol=p.symbol, shares=p.shares, avg_price=p.avg_price,
-            opened_at=p.opened_at, closed_at=p.closed_at, exit_price=p.exit_price,
-            status=p.status, notes=p.notes,
-        )
-        if p.status == "open":
-            cp = _current_price(p.symbol)
+    for s in snapshots:
+        item = PositionOut(**s)
+        if s["status"] == "open":
+            cp = _current_price(s["symbol"])
             if cp:
                 item.current_price = round(cp, 2)
-                item.pnl_dollars = round((cp - p.avg_price) * p.shares, 2)
-                item.pnl_pct = round((cp - p.avg_price) / p.avg_price * 100, 2)
-        else:
-            if p.exit_price:
-                item.pnl_dollars = round((p.exit_price - p.avg_price) * p.shares, 2)
-                item.pnl_pct = round((p.exit_price - p.avg_price) / p.avg_price * 100, 2)
+                item.pnl_dollars = round((cp - s["avg_price"]) * s["shares"], 2)
+                item.pnl_pct = round((cp - s["avg_price"]) / s["avg_price"] * 100, 2)
+        elif s["exit_price"]:
+            item.pnl_dollars = round((s["exit_price"] - s["avg_price"]) * s["shares"], 2)
+            item.pnl_pct = round((s["exit_price"] - s["avg_price"]) / s["avg_price"] * 100, 2)
         out.append(item)
     return out
 

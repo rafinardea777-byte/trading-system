@@ -1130,6 +1130,58 @@ async function loadStockNews(symbol) {
   }).join('');
 }
 
+async function loadStockEarnings(symbol) {
+  const target = document.getElementById('infoEarnings');
+  if (!target) return;
+  let data;
+  try {
+    data = await api(`/api/stocks/${encodeURIComponent(symbol)}/earnings`);
+  } catch (e) {
+    data = null;
+  }
+
+  const fmtDate = (s) => {
+    if (!s) return null;
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return s;
+    return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+  const daysFromNow = (s) => {
+    if (!s) return null;
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return null;
+    const ms = d.getTime() - Date.now();
+    return Math.ceil(ms / (1000 * 60 * 60 * 24));
+  };
+
+  if (!data) {
+    target.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0">— לא זמין —</div>';
+    return;
+  }
+
+  const dates = (data.earnings_dates || []).map(fmtDate).filter(Boolean);
+  const nextDays = (data.earnings_dates || []).map(daysFromNow).filter(d => d != null && d >= -30);
+  const nextStr = nextDays.length
+    ? (nextDays[0] >= 0
+        ? `<span style="color:var(--blue);font-weight:bold">בעוד ${nextDays[0]} ימים</span>`
+        : `<span style="color:var(--muted)">לפני ${Math.abs(nextDays[0])} ימים</span>`)
+    : '—';
+
+  const lines = [
+    row('דוח קרוב', dates.length ? dates.join(' / ') : '—'),
+    row('עד הדוח', nextStr),
+    row('אומדן EPS', data.eps_estimate != null ? data.eps_estimate.toFixed(2) : '—'),
+    row('טווח EPS',
+        (data.eps_low != null && data.eps_high != null)
+          ? `${data.eps_low.toFixed(2)} – ${data.eps_high.toFixed(2)}`
+          : '—'),
+    row('אומדן הכנסות', data.revenue_estimate != null ? '$' + fmtNum(data.revenue_estimate) : '—'),
+    row('Ex-Dividend', fmtDate(data.ex_dividend_date) || '—'),
+    row('תאריך דיבידנד', fmtDate(data.dividend_date) || '—'),
+  ];
+  target.innerHTML = lines.join('');
+}
+
 async function openStock(symbol) {
   symbol = (symbol || '').toUpperCase();
   recentAdd(symbol);  // הוסף ל-Recently Viewed
@@ -1158,7 +1210,7 @@ async function openStock(symbol) {
   document.getElementById('mName').textContent = 'טוען...';
   document.getElementById('mPrice').textContent = '--';
   document.getElementById('mChange').textContent = '';
-  ['infoGeneral','infoTrading','infoFundamentals','infoAnalysts','infoStockNews'].forEach(id => {
+  ['infoGeneral','infoTrading','infoFundamentals','infoAnalysts','infoEarnings','infoStockNews'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '<div class="modal-loading">טוען...</div>';
   });
@@ -1166,8 +1218,9 @@ async function openStock(symbol) {
   document.getElementById('finvizImg').src = '';
   document.getElementById('finvizLink').href = `https://finviz.com/quote.ashx?t=${symbol}`;
 
-  // טען חדשות פר-סמל במקביל
+  // טען חדשות + לוח דוחות במקביל
   loadStockNews(symbol);
+  loadStockEarnings(symbol);
 
   // גרף - ברירת מחדל 6 חודשים יומי
   document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
