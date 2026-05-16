@@ -1,7 +1,7 @@
 // TradingPro Service Worker - bumped version on every release
 // CACHE_NAME מועדכן בכל deploy כדי לכפות רענון static assets
 
-const CACHE_NAME = 'tp-v9-2026-05-16-fixes';
+const CACHE_NAME = 'tp-v10-2026-05-16-news';
 // app.js מוגש כעת עם ?v=BUILD - לכן לא צריך לקבע אותו ב-pre-cache
 const STATIC_ASSETS = ['/static/icon.svg', '/static/manifest.json'];
 

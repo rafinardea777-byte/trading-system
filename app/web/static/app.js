@@ -500,53 +500,120 @@ function renderEmpty(icon, title, hint) {
   return `<div class="empty"><div class="empty-icon">${icon}</div><div style="font-weight:bold;margin-bottom:6px">${title}</div><div>${hint}</div></div>`;
 }
 
-function renderNews(n) {
-  const time = n.published_at ? new Date(n.published_at).toLocaleString('he-IL') : '';
-  const author = n.source === 'twitter' ? `@${n.author}` : n.author;
-  const srcClass = n.source === 'twitter' ? 'source-twitter' : 'source-rss';
-  // הדגשה אם המנייה ב-watchlist
-  const mentioned = (n.mentioned_symbols || '').split(',').filter(Boolean);
-  const wlList = wlGet();
-  const matchedWl = mentioned.filter(s => wlList.includes(s));
-  const isWatched = matchedWl.length > 0;
-  const wlBadges = matchedWl.map(s =>
-    `<span class="wl-symbol-badge" onclick="event.stopPropagation();openStock('${s}')">⭐ ${s}</span>`
-  ).join('');
-  const allBadges = mentioned.filter(s => !matchedWl.includes(s)).map(s =>
-    `<span class="sym-badge" onclick="event.stopPropagation();openStock('${s}')">${s}</span>`
-  ).join('');
-  const cardClass = isWatched ? 'news-card watched-news' : 'news-card';
+// ============= NEWS CARDS (V2 - clean Hebrew-first) =============
+const _SRC_META = {
+  rss:        { label: '📺 RSS',         cls: 'rss' },
+  stocktwits: { label: '💬 StockTwits',  cls: 'stocktwits' },
+  reddit:     { label: '🔴 Reddit',      cls: 'reddit' },
+  twitter:    { label: '🐦 X',           cls: 'twitter' },
+};
 
-  // עברית: קודם תרגום מלא (OpenAI), אחרת רמז ממילון מקומי
-  let hebrewBlock = '';
-  if (n.hebrew_translation) {
-    hebrewBlock = `<div class="news-side heb"><span class="news-lang">🇮🇱 עברית</span><div class="text">${escapeHtml(n.hebrew_translation)}</div></div>`;
-  } else if (n.hebrew_explanation) {
-    hebrewBlock = `<div class="news-side heb"><span class="news-lang">🇮🇱 עברית (רמז)</span><div class="text">${escapeHtml(n.hebrew_explanation)}</div></div>`;
-  } else {
-    hebrewBlock = `<div class="news-side heb"><span class="news-lang">🇮🇱 עברית</span><div class="news-no-trans">— אין תרגום זמין —</div></div>`;
+function _cleanNewsText(t) {
+  if (!t) return '';
+  return t
+    .replace(/\[👍\s*\d+\s*\|\s*💬\s*\d+\]\s*/g, '')
+    .replace(/\[(?:Bullish|Bearish)[^\]]*\]/g, '')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function _newsTime(n) {
+  const ts = n.published_at || n.fetched_at;
+  if (!ts) return '';
+  return timeAgo(ts);
+}
+
+function _renderSymbolBadges(mentioned, wlSet) {
+  const wlBadges = [];
+  const otherBadges = [];
+  for (const s of mentioned) {
+    if (wlSet.has(s)) {
+      wlBadges.push(`<span class="wl-symbol-badge" onclick="event.stopPropagation();openStock('${s}')">⭐ ${s}</span>`);
+    } else {
+      otherBadges.push(`<span class="sym-badge" onclick="event.stopPropagation();openStock('${s}')">${s}</span>`);
+    }
   }
+  return wlBadges.concat(otherBadges).join('');
+}
 
-  // הסבר נוסף - רק אם יש גם תרגום וגם הסבר נפרד
-  const extra = (n.hebrew_translation && n.hebrew_explanation && n.hebrew_translation !== n.hebrew_explanation)
-    ? `<div class="news-explanation">💡 ${escapeHtml(n.hebrew_explanation)}</div>` : '';
+function renderNews(n) {
+  const text = _cleanNewsText(n.text);
+  const time = _newsTime(n);
+  const src = _SRC_META[n.source] || { label: n.source, cls: 'rss' };
+  const author = n.source === 'twitter' ? `@${n.author}` : (n.author || '');
+
+  const mentioned = (n.mentioned_symbols || '').split(',').filter(Boolean);
+  const wlSet = new Set(wlGet());
+  const isWatched = mentioned.some(s => wlSet.has(s));
+  const cardClass = isWatched ? 'news-card watched-news' : 'news-card';
+  const symbols = mentioned.length ? `<div class="news-symbols-row">${_renderSymbolBadges(mentioned, wlSet)}</div>` : '';
+
+  // עברית - בראש: תרגום מלא (OpenAI) או כותרת מובנית (regex)
+  let heLine = '';
+  if (n.hebrew_translation) {
+    heLine = `<div class="news-headline-he">${escapeHtml(n.hebrew_translation)}</div>`;
+  } else if (n.hebrew_explanation) {
+    heLine = `<div class="news-keywords">${escapeHtml(n.hebrew_explanation)}</div>`;
+  }
 
   return `
     <div class="${cardClass}">
-      <div class="news-meta">
-        <div class="news-author ${srcClass}">${author}</div>
-        <div>${time}</div>
-      </div>
-      ${(wlBadges || allBadges) ? `<div class="news-symbols">${wlBadges}${allBadges}</div>` : ''}
-      <div class="news-bilingual">
-        <div class="news-side eng">
-          <span class="news-lang">🇺🇸 EN</span>
-          <div class="text">${escapeHtml(n.text)}</div>
+      <div class="news-card-top">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="news-source-pill ${src.cls}">${src.label}</span>
+          <span class="news-author-name">${escapeHtml(author)}</span>
         </div>
-        ${hebrewBlock}
+        <span class="news-time">${time}</span>
       </div>
-      ${extra}
-      ${n.url ? `<a class="news-link" href="${escapeAttr(n.url)}" target="_blank" rel="noopener">קישור למקור →</a>` : ''}
+      ${heLine}
+      ${symbols}
+      <div class="news-headline-en">${escapeHtml(text)}</div>
+      ${n.url ? `<a class="news-link" href="${escapeAttr(n.url)}" target="_blank" rel="noopener">קרא במקור ↗</a>` : ''}
+    </div>`;
+}
+
+function renderNewsMini(n) {
+  // גרסה קומפקטית לדשבורד - עברית בראש, בלי טקסט אנגלי מלא
+  const text = _cleanNewsText(n.text);
+  const time = _newsTime(n);
+  const src = _SRC_META[n.source] || { label: n.source, cls: 'rss' };
+
+  const mentioned = (n.mentioned_symbols || '').split(',').filter(Boolean);
+  const wlSet = new Set(wlGet());
+  const isWatched = mentioned.some(s => wlSet.has(s));
+  const cardClass = isWatched ? 'news-card news-mini watched-news' : 'news-card news-mini';
+
+  // עברית מובנית או רמז - אחת מהשתיים
+  const heLine = n.hebrew_translation
+    ? `<div class="news-headline-he">${escapeHtml(n.hebrew_translation)}</div>`
+    : (n.hebrew_explanation
+        ? `<div class="news-keywords">${escapeHtml(n.hebrew_explanation)}</div>`
+        : '');
+
+  const symBadges = mentioned.length
+    ? mentioned.slice(0, 3).map(s => wlSet.has(s)
+        ? `<span class="wl-symbol-badge" onclick="event.stopPropagation();openStock('${s}')">⭐ ${s}</span>`
+        : `<span class="sym-badge" onclick="event.stopPropagation();openStock('${s}')">${s}</span>`).join(' ')
+    : '';
+
+  // טקסט אנגלי קצר אם אין עברית בכלל
+  const fallbackEn = (!heLine && text)
+    ? `<div class="news-headline-en" style="margin-bottom:4px">${escapeHtml(text.slice(0, 140))}</div>`
+    : '';
+
+  return `
+    <div class="${cardClass}" ${n.url ? `onclick="window.open('${escapeAttr(n.url)}', '_blank')"` : ''} style="${n.url ? 'cursor:pointer' : ''}">
+      <div class="news-card-top">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="news-source-pill ${src.cls}">${src.label}</span>
+          ${symBadges}
+        </div>
+        <span class="news-time">${time}</span>
+      </div>
+      ${heLine}
+      ${fallbackEn}
     </div>`;
 }
 
@@ -578,9 +645,9 @@ async function loadDashboard() {
   document.getElementById('openCount').textContent = sigs.length;
   document.getElementById('dashSignals').innerHTML = sigs.length ? sigs.map(renderSignal).join('') : renderEmpty('🔍', 'אין סיגנלים פתוחים', 'הרץ סריקת שוק');
 
-  const news = await api('/api/news?limit=5&hours_back=24') || [];
+  const news = await api('/api/news?limit=6&hours_back=24') || [];
   document.getElementById('newsCount').textContent = news.length;
-  document.getElementById('dashNews').innerHTML = news.length ? news.map(renderNews).join('') : renderEmpty('📭', 'אין חדשות', 'הרץ סריקת חדשות');
+  document.getElementById('dashNews').innerHTML = news.length ? news.map(renderNewsMini).join('') : renderEmpty('📭', 'אין חדשות', 'הרץ סריקת חדשות');
 
   // חדשות על Watchlist - מקטע מוצג רק אם המשתמש מחובר עם פריטים
   await loadWatchedNews();
@@ -809,24 +876,27 @@ function renderDigestGroup(g) {
   const sentLabel = {
     bullish: '📈 חיובי', bearish: '📉 שלילי', mixed: '⚖️ מעורב', neutral: '◽ ניטרלי',
   }[g.sentiment] || '◽';
-  const time = new Date(g.latest_at).toLocaleString('he-IL');
-  const topText = (g.top_item.text || '').replace(/\[👍 \d+ \| 💬 \d+\] /, '').slice(0, 220);
+  const time = g.latest_at ? timeAgo(g.latest_at) : '';
+  const topText = _cleanNewsText(g.top_item.text || '').slice(0, 220);
   const topHebrew = g.top_item.hebrew_translation || '';
   const hint = (!topHebrew && g.top_item.hebrew_explanation) ? g.top_item.hebrew_explanation : '';
-  const sources = g.sources.map(s =>
-    `<span class="digest-src ${s}">${({rss:'📺 RSS', stocktwits:'💬 StockTwits', reddit:'🔴 Reddit', twitter:'🐦 X'})[s] || s}</span>`
-  ).join('');
+  const sources = g.sources.map(s => {
+    const meta = _SRC_META[s] || { label: s, cls: 'rss' };
+    return `<span class="digest-src ${meta.cls}">${meta.label}</span>`;
+  }).join('');
   const extraToggle = g.headline_count > 1 ?
     `<button class="digest-expand" onclick="toggleDigestExtras(this, ${g.top_item.id})">+ ${g.headline_count - 1} כותרות נוספות</button>` : '';
 
-  // עוד פריטים (נסתרים בהתחלה)
+  // עוד פריטים (נסתרים בהתחלה) - גם הם מקבלים תרגום עברי
   const extras = g.items.filter(i => i.id !== g.top_item.id).map(i => {
-    const ttime = new Date(i.fetched_at).toLocaleString('he-IL');
-    const ttext = (i.text || '').replace(/\[👍 \d+ \| 💬 \d+\] /, '').slice(0, 180);
+    const ttime = i.fetched_at ? timeAgo(i.fetched_at) : '';
+    const ttext = _cleanNewsText(i.text || '').slice(0, 180);
+    const tHe = i.hebrew_translation || i.hebrew_explanation || '';
     return `<div class="digest-extra-item">
-      <span class="auth">${escapeHtml(i.author)}</span>
-      ${escapeHtml(ttext)}
-      ${i.url ? ` · <a href="${escapeAttr(i.url)}" target="_blank" rel="noopener">קישור</a>` : ''}
+      <span class="auth">${escapeHtml(i.author || '')}</span>
+      ${tHe ? `<div style="color:var(--text);font-weight:500;margin:2px 0">${escapeHtml(tHe)}</div>` : ''}
+      <div style="color:var(--muted);direction:ltr;text-align:left">${escapeHtml(ttext)}</div>
+      ${i.url ? `<a href="${escapeAttr(i.url)}" target="_blank" rel="noopener">📎 מקור</a>` : ''}
       <span style="float:left;color:var(--muted)">${ttime}</span>
     </div>`;
   }).join('');
@@ -844,12 +914,12 @@ function renderDigestGroup(g) {
         <span class="digest-time">${time}</span>
       </div>
     </div>
-    <div class="digest-headline">${escapeHtml(topText)}</div>
-    ${topHebrew ? `<div class="digest-heb">🇮🇱 ${escapeHtml(topHebrew)}</div>` : (hint ? `<div class="digest-heb" style="border-right-color:var(--muted)">💡 ${escapeHtml(hint)}</div>` : '')}
+    ${topHebrew ? `<div class="news-headline-he" style="margin-bottom:6px">${escapeHtml(topHebrew)}</div>` : (hint ? `<div class="news-keywords" style="margin-bottom:6px">${escapeHtml(hint)}</div>` : '')}
+    <div class="news-headline-en">${escapeHtml(topText)}</div>
     <div class="digest-footer">
       <div class="digest-sources">${sources}</div>
       <div>
-        ${g.top_item.url ? `<a href="${escapeAttr(g.top_item.url)}" target="_blank" rel="noopener" style="color:var(--blue)">📎 מקור</a>` : ''}
+        ${g.top_item.url ? `<a href="${escapeAttr(g.top_item.url)}" target="_blank" rel="noopener" class="news-link">קרא במקור ↗</a>` : ''}
         ${extraToggle}
       </div>
     </div>

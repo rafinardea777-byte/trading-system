@@ -153,23 +153,33 @@ tr:hover td{background:#0a1020}
 .pos{color:var(--green);font-weight:bold}
 .neg{color:var(--red);font-weight:bold}
 
-.news-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px}
-.news-meta{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);margin-bottom:10px}
-.news-author{font-weight:bold;color:var(--blue)}
-.news-bilingual{display:grid;grid-template-columns:1fr;gap:10px}
-@media(min-width:900px){.news-bilingual{grid-template-columns:1fr 1fr;gap:14px}}
-.news-side{background:#080c14;border:1px solid var(--border);border-radius:8px;padding:10px 12px;position:relative}
-.news-side.heb{border-right:3px solid var(--blue)}
-.news-side.eng{border-right:3px solid var(--gold);direction:ltr;text-align:left}
-.news-lang{position:absolute;top:-8px;background:var(--card);padding:0 6px;font-size:10px;color:var(--muted);font-weight:bold}
-.news-side.heb .news-lang{right:10px}
-.news-side.eng .news-lang{left:10px}
-.news-side .text{font-size:13px;line-height:1.55}
-.news-explanation{font-size:11px;color:var(--muted);font-style:italic;margin-top:8px;padding:6px 10px;border-right:2px solid var(--gold);background:#080c14;border-radius:0 6px 6px 0}
-.news-no-trans{font-size:12px;color:var(--muted);font-style:italic;text-align:center;padding:14px}
-.news-link{display:inline-block;font-size:11px;color:var(--blue);text-decoration:none;margin-top:8px}
-.source-twitter{color:var(--blue)}
-.source-rss{color:var(--gold)}
+/* ===== News cards (V2 - Hebrew-first, compact, professional) ===== */
+.news-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;transition:border-color .15s, transform .15s}
+.news-card:hover{border-color:var(--blue);transform:translateY(-1px)}
+.news-card.watched-news{border-right:3px solid var(--gold);background:linear-gradient(90deg,rgba(255,215,0,0.06),var(--card) 50%)}
+.news-card-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.news-source-pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:bold;padding:3px 9px;border-radius:6px;letter-spacing:.3px;text-transform:uppercase}
+.news-source-pill.rss{background:#1a1a2e;color:var(--muted);border:1px solid #2a2a3e}
+.news-source-pill.stocktwits{background:#0a1f1a;color:var(--green);border:1px solid #1a4f3a}
+.news-source-pill.reddit{background:#2a0f0f;color:#ff6b6b;border:1px solid #5a1f1f}
+.news-source-pill.twitter{background:#0a2545;color:#1d9bf0;border:1px solid #1d3a5e}
+.news-author-name{font-size:11px;color:var(--muted);font-weight:500}
+.news-time{font-size:10px;color:var(--muted)}
+.news-headline-he{font-size:15px;font-weight:bold;line-height:1.45;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.news-headline-he .nh-divider{color:var(--border)}
+.news-headline-en{font-size:12px;line-height:1.55;color:var(--muted);direction:ltr;text-align:left;padding:6px 10px;background:#080c14;border-radius:6px;border-right:2px solid var(--gold);margin-bottom:8px}
+.news-keywords{font-size:11px;color:#bcc7d6;background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);padding:5px 10px;border-radius:6px;margin-bottom:8px;display:inline-block}
+.news-keywords::before{content:"🔎 ";opacity:.7}
+.news-no-translate{font-size:11px;color:var(--muted);font-style:italic;display:none}
+.news-symbols-row{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap}
+.news-link{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--blue);text-decoration:none;padding:4px 0;font-weight:500}
+.news-link:hover{text-decoration:underline}
+/* Compact dashboard variant */
+.news-mini{padding:10px 12px;margin-bottom:7px}
+.news-mini .news-headline-he{font-size:13px;margin-bottom:4px}
+.news-mini .news-headline-en{font-size:11px;padding:4px 8px;margin-bottom:4px}
+.news-mini .news-card-top{margin-bottom:6px}
+.news-mini .news-source-pill{padding:2px 7px;font-size:9px}
 
 .settings-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
 .settings-card h3{font-size:15px;margin-bottom:16px;color:var(--blue)}
@@ -1029,6 +1039,6 @@ body{padding-bottom:70px}
 
 <div class="toast" id="toast"></div>
 
-<script src="/static/app.js?v=9-2026-05-16" defer></script>
+<script src="/static/app.js?v=10-2026-05-16" defer></script>
 </body>
 </html>
