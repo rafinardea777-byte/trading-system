@@ -1,7 +1,7 @@
 // TradingPro Service Worker - bumped version on every release
 // CACHE_NAME מועדכן בכל deploy כדי לכפות רענון static assets
 
-const CACHE_NAME = 'tp-v6-2026-05-16-earnings';
+const CACHE_NAME = 'tp-v7-2026-05-16-journal';
 const STATIC_ASSETS = ['/static/icon.svg', '/static/manifest.json', '/static/app.js'];
 
 self.addEventListener('install', e => {

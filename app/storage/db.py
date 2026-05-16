@@ -69,6 +69,14 @@ def init_db() -> None:
             _add_column_if_missing(conn, "user", "subscription_status", "TEXT")
             _add_column_if_missing(conn, "user", "accepted_terms_at", "TEXT")
             _add_column_if_missing(conn, "user", "daily_digest_enabled", "BOOLEAN DEFAULT 0")
+            # TradeJournal multi-tenant + new fields
+            _add_column_if_missing(conn, "tradejournal", "user_id", "INTEGER")
+            _add_column_if_missing(conn, "tradejournal", "direction", "TEXT DEFAULT 'long'")
+            _add_column_if_missing(conn, "tradejournal", "shares", "REAL DEFAULT 0")
+            _add_column_if_missing(conn, "tradejournal", "target_price", "REAL")
+            _add_column_if_missing(conn, "tradejournal", "pnl_dollars", "REAL")
+            _add_column_if_missing(conn, "tradejournal", "fees", "REAL DEFAULT 0")
+            _add_column_if_missing(conn, "tradejournal", "created_at", "TEXT")
 
 
 _VALID_TABLE = re.compile(r"^[a-z_][a-z0-9_]*$")

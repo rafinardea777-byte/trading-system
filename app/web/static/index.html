@@ -448,7 +448,6 @@ body{padding-bottom:70px}
   <button class="nav-item" onclick="showPage('watchlist',this)">⭐ Watchlist</button>
   <button class="nav-item" onclick="showPage('news',this)">📰 חדשות שוק</button>
   <button class="nav-item" onclick="showPage('journal',this)">📋 יומן עסקאות</button>
-  <button class="nav-item" onclick="showPage('scans',this)">🛰️ ריצות סורק</button>
   <button class="nav-item" onclick="showPage('analytics',this)">📈 Analytics</button>
   <button class="nav-item logged-in-only" onclick="showPage('portfolio',this)" style="display:none">💼 התיק שלי</button>
   <button class="nav-item logged-in-only" onclick="showPage('account',this)" style="display:none">👤 החשבון שלי</button>
@@ -484,7 +483,6 @@ body{padding-bottom:70px}
 <div id="moreMenu" style="display:none;position:fixed;bottom:65px;left:8px;right:8px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;z-index:301;box-shadow:0 -8px 24px rgba(0,0,0,.5)">
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
     <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('journal',null)" style="padding:14px 4px"><span class="icon">📋</span>יומן</button>
-    <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('scans',null)" style="padding:14px 4px"><span class="icon">🛰️</span>סורקים</button>
     <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('analytics',null)" style="padding:14px 4px"><span class="icon">📈</span>Analytics</button>
     <button class="mobile-nav-item logged-in-only" onclick="toggleMoreMenu();showPage('account',null)" style="padding:14px 4px;display:none"><span class="icon">👤</span>החשבון</button>
     <button class="mobile-nav-item" onclick="toggleMoreMenu();showPage('settings',null)" style="padding:14px 4px"><span class="icon">⚙️</span>הגדרות</button>
@@ -576,7 +574,42 @@ body{padding-bottom:70px}
       <button class="btn btn-blue" onclick="wlAdd()">➕ הוסף</button>
       <button class="btn" style="background:#1a2744" onclick="wlRefresh()">🔄 רענן מחירים</button>
     </div>
-    <div class="signals-grid" id="watchlistGrid"></div>
+
+    <div class="sub-tabs">
+      <button class="sub-tab active" data-tab="wl-cards" onclick="setWlTab('cards')">⭐ הרשימה</button>
+      <button class="sub-tab" data-tab="wl-perf" onclick="setWlTab('perf')">📊 ביצועים</button>
+    </div>
+
+    <div id="wlTabCards">
+      <div class="signals-grid" id="watchlistGrid"></div>
+    </div>
+
+    <div id="wlTabPerf" style="display:none">
+      <div id="analyticsAuthGate" style="text-align:center;padding:40px;color:var(--muted)">
+        <div style="font-size:48px;margin-bottom:14px">🔐</div>
+        <div>נדרשת התחברות כדי לראות ביצועי Watchlist</div>
+        <button class="btn btn-blue" style="margin-top:14px" onclick="openLogin()">התחבר</button>
+      </div>
+      <div id="analyticsContent" style="display:none">
+        <div class="stats-grid" id="anStats"></div>
+        <div class="chart-card" style="margin-top:14px">
+          <div class="card-header">
+            <div class="card-title">🏆 הבולטים השבוע</div>
+            <button class="btn btn-blue" onclick="loadAnalytics(true)">🔄 רענן</button>
+          </div>
+          <div id="anHighlights" style="display:grid;grid-template-columns:1fr;gap:10px"></div>
+        </div>
+        <div class="chart-card" style="margin-top:14px">
+          <div class="card-header"><div class="card-title">📊 פירוט לפי מנייה</div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>מנייה</th><th>שם</th><th>מחיר</th><th>יום</th><th>שבוע</th><th>חודש</th><th>RSI</th><th>MA20</th></tr></thead>
+              <tbody id="anTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- NEWS -->
@@ -593,35 +626,128 @@ body{padding-bottom:70px}
     <div id="newsList"></div>
   </div>
 
-  <!-- JOURNAL -->
+  <!-- JOURNAL - תיעוד עסקאות מסודר -->
   <div class="page" id="page-journal">
     <div class="page-title">📋 יומן <span>עסקאות</span></div>
-    <div class="table-card">
-      <div class="card-header"><div class="card-title">כל הסיגנלים</div><div class="card-badge" id="journalCount">0</div></div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>תאריך</th><th>מנייה</th><th>כניסה</th><th>RSI</th><th>וולום</th><th>חוזק</th><th>יעד 1</th><th>סטופ</th><th>סטטוס</th></tr></thead>
-          <tbody id="journalBody"></tbody>
-        </table>
+
+    <div class="sub-tabs">
+      <button class="sub-tab active" data-tab="manual" onclick="setJournalTab('manual')">✍️ העסקאות שלי</button>
+      <button class="sub-tab" data-tab="signals" onclick="setJournalTab('signals')">🤖 סיגנלי סורק</button>
+    </div>
+
+    <!-- TAB 1: Manual journal -->
+    <div id="journalManual">
+      <div id="journalAuthGate" style="text-align:center;padding:40px;color:var(--muted)">
+        <div style="font-size:48px;margin-bottom:14px">🔐</div>
+        <div>נדרשת התחברות ליומן העסקאות האישי</div>
+        <button class="btn btn-blue" style="margin-top:14px" onclick="openLogin()">התחבר</button>
+      </div>
+      <div id="journalContent" style="display:none">
+        <div class="stats-grid" id="jStats" style="margin-bottom:14px"></div>
+
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <button class="sub-tab active" data-jfilter="all" onclick="setJournalFilter('all')" style="padding:6px 12px">הכל</button>
+          <button class="sub-tab" data-jfilter="open" onclick="setJournalFilter('open')" style="padding:6px 12px">פתוחות</button>
+          <button class="sub-tab" data-jfilter="closed" onclick="setJournalFilter('closed')" style="padding:6px 12px">סגורות</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-blue" onclick="jShowAdd()">＋ עסקה חדשה</button>
+        </div>
+
+        <div class="table-card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>תאריך</th><th>מנייה</th><th>כיוון</th><th>כמות</th><th>כניסה</th>
+                <th>סטופ</th><th>יעד</th><th>R:R</th><th>יציאה</th>
+                <th>P&L $</th><th>P&L %</th><th>סטטוס</th><th></th>
+              </tr></thead>
+              <tbody id="jBody"><tr><td colspan="13" style="text-align:center;color:var(--muted);padding:30px">טוען...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Auto signals (read-only, compact) -->
+    <div id="journalSignals" style="display:none">
+      <div class="table-card">
+        <div class="card-header">
+          <div class="card-title">סיגנלי סורק היסטוריים</div>
+          <div class="card-badge" id="journalCount">0</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>תאריך</th><th>מנייה</th><th>כניסה</th><th>RSI</th><th>וולום</th><th>חוזק</th><th>יעד</th><th>סטופ</th><th>סטטוס</th></tr></thead>
+            <tbody id="journalBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- SCANS -->
-  <div class="page" id="page-scans">
-    <div class="page-title">🛰️ ריצות <span>סורק</span></div>
-    <div class="table-card">
-      <div class="card-header"><div class="card-title">היסטוריית ריצות</div></div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>זמן</th><th>סוג</th><th>סטטוס</th><th>נמצאו</th><th>משך</th></tr></thead>
-          <tbody id="scansBody"></tbody>
-        </table>
+  <!-- JOURNAL ENTRY MODAL -->
+  <div class="auth-modal" id="jEntryModal" onclick="if(event.target===this)jCloseAdd()">
+    <div class="auth-box" style="max-width:500px">
+      <div class="auth-title" id="jEntryTitle">✍️ עסקה חדשה</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">סמל</label>
+          <input id="jfSymbol" placeholder="AAPL" maxlength="10"
+                 oninput="this.value=this.value.toUpperCase()"
+                 style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;width:100%;direction:ltr;text-align:left">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">כיוון</label>
+          <select id="jfDirection" style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;width:100%">
+            <option value="long">📈 LONG (קנייה)</option>
+            <option value="short">📉 SHORT (מכירה בחסר)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">כמות מניות</label>
+          <input id="jfShares" type="number" step="any" min="0.0001" placeholder="100"
+                 style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">מחיר כניסה</label>
+          <input id="jfEntry" type="number" step="any" min="0.0001" placeholder="150.25"
+                 style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">סטופ-לוס (אופציונלי)</label>
+          <input id="jfStop" type="number" step="any" min="0" placeholder="145"
+                 style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">יעד (אופציונלי)</label>
+          <input id="jfTarget" type="number" step="any" min="0" placeholder="165"
+                 style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">מחיר יציאה (אם נסגרה)</label>
+          <input id="jfExit" type="number" step="any" min="0" placeholder="ריק = עדיין פתוח"
+                 style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">עמלות $</label>
+          <input id="jfFees" type="number" step="any" min="0" value="0"
+                 style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;width:100%">
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">הערות (אופציונלי)</label>
+        <textarea id="jfNotes" rows="2" placeholder="סיבת כניסה, אסטרטגיה, מצב שוק..." maxlength="400"
+                  style="background:#080c14;border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;width:100%;resize:vertical;font-family:inherit"></textarea>
+      </div>
+      <div id="jfPreview" style="font-size:12px;color:var(--muted);background:#0a1220;border:1px solid var(--border);padding:8px;border-radius:6px;margin-bottom:10px;min-height:18px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" style="background:#1a2744" onclick="jCloseAdd()">ביטול</button>
+        <button class="btn btn-blue" onclick="jSubmit()">💾 שמור</button>
       </div>
     </div>
   </div>
 
-  <!-- SETTINGS -->
+  <!-- SETTINGS (כולל ריצות סורק - קרה אוטומטית, לא צריך טאב נפרד) -->
   <div class="page" id="page-settings">
     <div class="page-title">⚙️ <span>הגדרות מערכת</span></div>
     <div class="settings-card" id="systemInfo">
@@ -632,6 +758,20 @@ body{padding-bottom:70px}
       <div class="setting-row"><div class="setting-label">תרגום OpenAI</div><div class="setting-value" id="cfgAI">--</div></div>
       <div class="setting-row"><div class="setting-label">התראות טלגרם</div><div class="setting-value" id="cfgTg">--</div></div>
     </div>
+
+    <div class="settings-card">
+      <h3>🛰️ ריצות סורק אחרונות
+        <button class="btn btn-blue" style="float:left;padding:4px 10px;font-size:11px" onclick="loadScans()">🔄 רענן</button>
+      </h3>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">הסורקים רצים אוטומטית ברקע (חדשות כל 4 שעות, שוק כל 30 דקות).</p>
+      <div class="table-wrap" style="margin-top:8px">
+        <table>
+          <thead><tr><th>זמן</th><th>סוג</th><th>סטטוס</th><th>נמצאו</th><th>משך</th></tr></thead>
+          <tbody id="scansBody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px">טוען...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="settings-card">
       <h3>📚 תיעוד</h3>
       <div class="setting-row"><div class="setting-label">API Docs</div><div class="setting-value"><a href="/docs" target="_blank" style="color:var(--blue)">/docs</a></div></div>
@@ -721,56 +861,18 @@ body{padding-bottom:70px}
     </div>
   </div>
 
-  <!-- ANALYTICS - UNIFIED (Performance + Analyst Recommendations) -->
+  <!-- ANALYTICS - Analyst Recommendations -->
   <div class="page" id="page-analytics">
-    <div class="page-title">📈 <span>Analytics</span></div>
-
-    <!-- Sub-tabs -->
-    <div class="sub-tabs">
-      <button class="sub-tab active" data-tab="performance" onclick="setAnTab('performance')">📊 ביצועי Watchlist</button>
-      <button class="sub-tab" data-tab="analysts" onclick="setAnTab('analysts')">🎯 המלצות אנליסטים</button>
+    <div class="page-title">📈 <span>Analytics — המלצות אנליסטים</span></div>
+    <div style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div style="font-size:13px;color:var(--text);font-weight:bold">תקופה:</div>
+      <button class="btn btn-blue" id="anDaysBtn7" onclick="loadAnalysts(7)">7 ימים</button>
+      <button class="btn" style="background:#1a2744" id="anDaysBtn14" onclick="loadAnalysts(14)">14 ימים</button>
+      <button class="btn" style="background:#1a2744" id="anDaysBtn30" onclick="loadAnalysts(30)">30 ימים</button>
+      <div style="flex:1"></div>
+      <div style="font-size:10px;color:var(--muted);text-align:end">Watchlist + 30 מניות פופולריות · מתבסס על yfinance</div>
     </div>
-
-    <!-- Tab 1: Performance -->
-    <div id="anTabPerformance">
-      <div id="analyticsAuthGate" style="text-align:center;padding:40px;color:var(--muted)">
-        <div style="font-size:48px;margin-bottom:14px">🔐</div>
-        <div>נדרשת התחברות כדי לראות ביצועי Watchlist</div>
-        <button class="btn btn-blue" style="margin-top:14px" onclick="openLogin()">התחבר</button>
-      </div>
-      <div id="analyticsContent" style="display:none">
-        <div class="stats-grid" id="anStats"></div>
-        <div class="chart-card" style="margin-top:14px">
-          <div class="card-header">
-            <div class="card-title">🏆 הבולטים השבוע</div>
-            <button class="btn btn-blue" onclick="loadAnalytics(true)">🔄 רענן</button>
-          </div>
-          <div id="anHighlights" style="display:grid;grid-template-columns:1fr;gap:10px"></div>
-        </div>
-        <div class="chart-card" style="margin-top:14px">
-          <div class="card-header"><div class="card-title">📊 פירוט לפי מנייה</div></div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>מנייה</th><th>שם</th><th>מחיר</th><th>יום</th><th>שבוע</th><th>חודש</th><th>RSI</th><th>MA20</th></tr></thead>
-              <tbody id="anTable"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Tab 2: Analyst Recommendations -->
-    <div id="anTabAnalysts" style="display:none">
-      <div style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <div style="font-size:13px;color:var(--text);font-weight:bold">תקופה:</div>
-        <button class="btn btn-blue" id="anDaysBtn7" onclick="loadAnalysts(7)">7 ימים</button>
-        <button class="btn" style="background:#1a2744" id="anDaysBtn14" onclick="loadAnalysts(14)">14 ימים</button>
-        <button class="btn" style="background:#1a2744" id="anDaysBtn30" onclick="loadAnalysts(30)">30 ימים</button>
-        <div style="flex:1"></div>
-        <div style="font-size:10px;color:var(--muted);text-align:end">מתבסס על yfinance<br>Watchlist + 30 מניות פופולריות</div>
-      </div>
-      <div id="analystsList"></div>
-    </div>
+    <div id="analystsList"></div>
   </div>
 
   <!-- PLANS / UPGRADE -->

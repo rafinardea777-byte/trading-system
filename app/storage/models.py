@@ -151,19 +151,28 @@ class PortfolioPosition(SQLModel, table=True):
 
 
 class TradeJournal(SQLModel, table=True):
-    """יומן עסקאות (לאחר כניסה)."""
+    """יומן עסקאות ידני - תיעוד אישי של עסקאות עם פרמטרים מלאים לחישוב P&L."""
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     signal_id: Optional[int] = Field(default=None, foreign_key="signal.id")
     symbol: str = Field(index=True)
+    direction: str = Field(default="long")  # long | short
+    shares: float = Field(default=0)
     entry_price: float
     entry_at: datetime = Field(default_factory=datetime.utcnow)
-    position_size_usd: float
-    target_1: float
-    target_2: float
-    stop_loss: float
+    target_price: Optional[float] = None
+    stop_loss: Optional[float] = None
     exit_price: Optional[float] = None
     exit_at: Optional[datetime] = None
     pnl_pct: Optional[float] = None
+    pnl_dollars: Optional[float] = None
+    fees: float = Field(default=0)  # עמלות
     status: str = Field(default="open", index=True)  # open | closed
     notes: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+    # Legacy (לא בשימוש בלוגיקה החדשה אבל נשמרים בסכמה)
+    position_size_usd: float = 0
+    target_1: float = 0
+    target_2: float = 0

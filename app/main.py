@@ -34,6 +34,7 @@ from app.api import alerts_portfolio as alerts_portfolio_router
 from app.api import analysts as analysts_router
 from app.api import billing as billing_router
 from app.api import digest as digest_router
+from app.api import journal as journal_router
 from app.api import legal as legal_router
 from app.api import me as me_router
 from app.api import news as news_router
@@ -115,6 +116,7 @@ app.include_router(billing_router.router)
 app.include_router(analysts_router.router)
 app.include_router(ai_chat_router.router)
 app.include_router(alerts_portfolio_router.router)
+app.include_router(journal_router.router)
 app.include_router(legal_router.router)
 app.include_router(system_router.router)
 

@@ -401,11 +401,10 @@ function showPage(pageId, btn) {
   if (pageId === 'watchlist') loadWatchlist();
   if (pageId === 'news') loadNews();
   if (pageId === 'journal') loadJournal();
-  if (pageId === 'scans') loadScans();
-  if (pageId === 'settings') loadHealth();
+  if (pageId === 'settings') { loadHealth(); loadScans(); }
   if (pageId === 'plans') loadPlans();
   if (pageId === 'admin') loadAdmin();
-  if (pageId === 'analytics') { setAnTab(_anCurrentTab || 'performance'); }
+  if (pageId === 'analytics') loadAnalysts(7);
   if (pageId === 'portfolio') { setPortTab(_portTab || 'open'); }
   if (pageId === 'account') loadAccount();
 }
@@ -871,7 +870,37 @@ function toggleDigestExtras(btn, topId) {
   }
 }
 
+// ============= TRADE JOURNAL =============
+let _jTab = 'manual';
+let _jFilter = 'all';
+let _jEntries = [];
+let _jEditingId = null;
+
+function setJournalTab(tab) {
+  _jTab = tab;
+  document.querySelectorAll('#page-journal > .sub-tabs .sub-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  document.getElementById('journalManual').style.display = tab === 'manual' ? '' : 'none';
+  document.getElementById('journalSignals').style.display = tab === 'signals' ? '' : 'none';
+  if (tab === 'manual') loadJournalManual();
+  if (tab === 'signals') loadJournalSignals();
+}
+
+function setJournalFilter(f) {
+  _jFilter = f;
+  document.querySelectorAll('[data-jfilter]').forEach(b => {
+    b.classList.toggle('active', b.dataset.jfilter === f);
+  });
+  renderJournalEntries();
+}
+
 async function loadJournal() {
+  // נקודת כניסה - בוחר טאב לפי לוגין
+  setJournalTab(isLoggedIn() ? 'manual' : 'signals');
+}
+
+async function loadJournalSignals() {
   const sigs = await api('/api/signals?limit=100') || [];
   document.getElementById('journalCount').textContent = sigs.length;
   const body = document.getElementById('journalBody');
@@ -881,7 +910,6 @@ async function loadJournal() {
   }
   body.innerHTML = sigs.map(s => {
     const date = new Date(s.created_at).toLocaleDateString('he-IL');
-    const pnl = s.pnl_pct != null ? `<span class="${s.pnl_pct >= 0 ? 'pos' : 'neg'}">${s.pnl_pct >= 0 ? '+' : ''}${s.pnl_pct.toFixed(1)}%</span>` : '-';
     const badge = s.status === 'open' ? `<span class="badge-open">פתוח</span>` : `<span class="badge-closed">${s.status === 'closed' ? 'סגור' : 'דילוג'}</span>`;
     const starred = wlHas(s.symbol);
     return `<tr>
@@ -899,6 +927,200 @@ async function loadJournal() {
       <td>${badge}</td>
     </tr>`;
   }).join('');
+}
+
+async function loadJournalManual() {
+  const gate = document.getElementById('journalAuthGate');
+  const content = document.getElementById('journalContent');
+  if (!isLoggedIn()) { gate.style.display = ''; content.style.display = 'none'; return; }
+  gate.style.display = 'none'; content.style.display = '';
+
+  const [entries, stats] = await Promise.all([
+    api('/api/me/journal').catch(() => []),
+    api('/api/me/journal/stats').catch(() => null),
+  ]);
+  _jEntries = entries || [];
+  renderJournalStats(stats);
+  renderJournalEntries();
+}
+
+function renderJournalStats(s) {
+  const target = document.getElementById('jStats');
+  if (!s) { target.innerHTML = ''; return; }
+  const pnlCls = s.total_pnl_dollars >= 0 ? 'green' : 'red';
+  const pnlSign = s.total_pnl_dollars >= 0 ? '+' : '';
+  target.innerHTML = `
+    <div class="stat-card blue"><div class="stat-icon">📋</div><div class="stat-value">${s.total}</div><div class="stat-label">סה"כ עסקאות</div></div>
+    <div class="stat-card"><div class="stat-icon">📂</div><div class="stat-value">${s.open}</div><div class="stat-label">פתוחות</div></div>
+    <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-value">${s.win_rate}%</div><div class="stat-label">Win Rate (${s.wins}/${s.closed})</div></div>
+    <div class="stat-card ${pnlCls}"><div class="stat-icon">💰</div><div class="stat-value">${pnlSign}$${s.total_pnl_dollars.toFixed(0)}</div><div class="stat-label">סה"כ P&L</div></div>
+  `;
+}
+
+function renderJournalEntries() {
+  const body = document.getElementById('jBody');
+  let list = _jEntries.slice();
+  if (_jFilter === 'open') list = list.filter(e => e.status === 'open');
+  else if (_jFilter === 'closed') list = list.filter(e => e.status === 'closed');
+
+  if (!list.length) {
+    body.innerHTML = `<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:30px">
+      ${_jEntries.length ? 'אין עסקאות בקטגוריה הזו' : 'אין עסקאות עדיין — לחץ "＋ עסקה חדשה" כדי להתחיל'}
+    </td></tr>`;
+    return;
+  }
+
+  body.innerHTML = list.map(e => {
+    const date = new Date(e.entry_at).toLocaleDateString('he-IL', {day:'2-digit', month:'2-digit', year:'2-digit'});
+    const dir = e.direction === 'long' ? '<span style="color:var(--green)">📈 LONG</span>' : '<span style="color:var(--red)">📉 SHORT</span>';
+    const stop = e.stop_loss != null ? '$' + e.stop_loss.toFixed(2) : '—';
+    const tgt = e.target_price != null ? '$' + e.target_price.toFixed(2) : '—';
+    const rr = e.risk_reward != null ? e.risk_reward.toFixed(2) : '—';
+    const exit = e.exit_price != null ? '$' + e.exit_price.toFixed(2) : '—';
+    const pnlD = e.pnl_dollars != null
+      ? `<span class="${e.pnl_dollars >= 0 ? 'pos' : 'neg'}">${e.pnl_dollars >= 0 ? '+' : ''}$${e.pnl_dollars.toFixed(2)}</span>`
+      : '—';
+    const pnlP = e.pnl_pct != null
+      ? `<span class="${e.pnl_pct >= 0 ? 'pos' : 'neg'}">${e.pnl_pct >= 0 ? '+' : ''}${e.pnl_pct.toFixed(2)}%</span>`
+      : '—';
+    const badge = e.status === 'open'
+      ? `<span class="badge-open">פתוחה</span>`
+      : `<span class="badge-closed">סגורה</span>`;
+    const closeBtn = e.status === 'open'
+      ? `<button class="btn" style="padding:3px 7px;font-size:10px;background:#1a2744;margin-left:3px" title="סגור עסקה" onclick="jShowClose(${e.id})">✓ סגור</button>`
+      : '';
+    return `<tr>
+      <td>${date}</td>
+      <td><span class="sym clickable-sym" onclick="openStock('${e.symbol}')">${e.symbol}</span></td>
+      <td>${dir}</td>
+      <td>${e.shares}</td>
+      <td>$${e.entry_price.toFixed(2)}</td>
+      <td>${stop}</td>
+      <td>${tgt}</td>
+      <td>${rr}</td>
+      <td>${exit}</td>
+      <td>${pnlD}</td>
+      <td>${pnlP}</td>
+      <td>${badge}</td>
+      <td>${closeBtn}<button class="btn" style="padding:3px 7px;font-size:10px;background:#5a1212;color:#fff" title="מחק" onclick="jDelete(${e.id})">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function jShowAdd() {
+  _jEditingId = null;
+  document.getElementById('jEntryTitle').textContent = '✍️ עסקה חדשה';
+  ['jfSymbol','jfShares','jfEntry','jfStop','jfTarget','jfExit','jfNotes'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('jfFees').value = '0';
+  document.getElementById('jfDirection').value = 'long';
+  document.getElementById('jfPreview').textContent = '';
+  document.getElementById('jEntryModal').classList.add('show');
+  // live preview
+  ['jfShares','jfEntry','jfExit','jfFees','jfDirection','jfStop','jfTarget'].forEach(id => {
+    document.getElementById(id).oninput = jfUpdatePreview;
+    document.getElementById(id).onchange = jfUpdatePreview;
+  });
+}
+
+function jShowClose(id) {
+  const e = _jEntries.find(x => x.id === id);
+  if (!e) return;
+  const price = prompt(`סגירת ${e.symbol} - הזן מחיר יציאה:`, e.entry_price.toFixed(2));
+  if (!price) return;
+  const px = parseFloat(price);
+  if (!px || px <= 0) { toast('מחיר לא תקין'); return; }
+  jPatch(id, {exit_price: px});
+}
+
+function jCloseAdd() { document.getElementById('jEntryModal').classList.remove('show'); }
+
+function jfUpdatePreview() {
+  const shares = parseFloat(document.getElementById('jfShares').value) || 0;
+  const entry = parseFloat(document.getElementById('jfEntry').value) || 0;
+  const exit = parseFloat(document.getElementById('jfExit').value) || 0;
+  const fees = parseFloat(document.getElementById('jfFees').value) || 0;
+  const stop = parseFloat(document.getElementById('jfStop').value) || 0;
+  const tgt = parseFloat(document.getElementById('jfTarget').value) || 0;
+  const dir = document.getElementById('jfDirection').value;
+  const sign = dir === 'long' ? 1 : -1;
+
+  const parts = [];
+  if (shares && entry) parts.push(`גודל פוזיציה: <b>$${(shares * entry).toFixed(2)}</b>`);
+  if (shares && entry && exit) {
+    const pnlD = (exit - entry) * shares * sign - fees;
+    const pnlP = (exit - entry) / entry * 100 * sign;
+    const cls = pnlD >= 0 ? 'pos' : 'neg';
+    parts.push(`P&L: <span class="${cls}">${pnlD >= 0 ? '+' : ''}$${pnlD.toFixed(2)} (${pnlP >= 0 ? '+' : ''}${pnlP.toFixed(2)}%)</span>`);
+  }
+  if (entry && stop && tgt) {
+    const risk = Math.abs(entry - stop);
+    const reward = Math.abs(tgt - entry);
+    if (risk > 0) parts.push(`R:R = <b>${(reward/risk).toFixed(2)}</b>`);
+  }
+  document.getElementById('jfPreview').innerHTML = parts.length ? parts.join(' · ') : 'מלא שדות כדי לראות חישוב…';
+}
+
+async function jSubmit() {
+  const sym = (document.getElementById('jfSymbol').value || '').trim().toUpperCase();
+  if (!/^[A-Z]{1,6}(\.[A-Z]{1,3})?$/.test(sym)) { toast('סמל לא תקין'); return; }
+  const shares = parseFloat(document.getElementById('jfShares').value);
+  const entry = parseFloat(document.getElementById('jfEntry').value);
+  if (!shares || shares <= 0) { toast('כמות חייבת להיות > 0'); return; }
+  if (!entry || entry <= 0) { toast('מחיר כניסה חייב להיות > 0'); return; }
+
+  const exit = parseFloat(document.getElementById('jfExit').value);
+  const stop = parseFloat(document.getElementById('jfStop').value);
+  const tgt = parseFloat(document.getElementById('jfTarget').value);
+  const fees = parseFloat(document.getElementById('jfFees').value) || 0;
+
+  const body = {
+    symbol: sym,
+    direction: document.getElementById('jfDirection').value,
+    shares,
+    entry_price: entry,
+    fees,
+    notes: (document.getElementById('jfNotes').value || '').slice(0, 400),
+  };
+  if (stop > 0) body.stop_loss = stop;
+  if (tgt > 0) body.target_price = tgt;
+  if (exit > 0) body.exit_price = exit;
+
+  const r = await fetch(API + '/api/me/journal', {
+    method: 'POST',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    toast(e.detail || 'שגיאה בשמירה');
+    return;
+  }
+  toast('✅ עסקה נשמרה');
+  jCloseAdd();
+  await loadJournalManual();
+}
+
+async function jPatch(id, body) {
+  const r = await fetch(API + `/api/me/journal/${id}`, {
+    method: 'PATCH',
+    headers: Object.assign({'Content-Type':'application/json'}, authHeader()),
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) { toast('שגיאה בעדכון'); return; }
+  toast('✅ עודכן');
+  await loadJournalManual();
+}
+
+async function jDelete(id) {
+  if (!confirm('למחוק את העסקה?')) return;
+  const r = await fetch(API + `/api/me/journal/${id}`, {
+    method: 'DELETE', headers: authHeader(),
+  });
+  if (!r.ok) { toast('שגיאה במחיקה'); return; }
+  toast('🗑 נמחקה');
+  await loadJournalManual();
 }
 
 async function loadScans() {
@@ -1539,16 +1761,17 @@ async function handleAuthHash() {
   }
 }
 
-// ============= ANALYTICS SUB-TABS =============
-let _anCurrentTab = 'performance';
+// ============= WATCHLIST SUB-TABS (cards | performance) =============
+let _wlTab = 'cards';
 
-function setAnTab(tab) {
-  _anCurrentTab = tab;
-  document.querySelectorAll('.sub-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.getElementById('anTabPerformance').style.display = tab === 'performance' ? '' : 'none';
-  document.getElementById('anTabAnalysts').style.display = tab === 'analysts' ? '' : 'none';
-  if (tab === 'performance') loadAnalytics();
-  if (tab === 'analysts') loadAnalysts(7);
+function setWlTab(tab) {
+  _wlTab = tab;
+  document.querySelectorAll('#page-watchlist .sub-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === ('wl-' + tab));
+  });
+  document.getElementById('wlTabCards').style.display = tab === 'cards' ? '' : 'none';
+  document.getElementById('wlTabPerf').style.display = tab === 'perf' ? '' : 'none';
+  if (tab === 'perf') loadAnalytics();
 }
 
 // ============= ANALYSTS =============
